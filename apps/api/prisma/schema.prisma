@@ -31,4 +31,8 @@ model Referral {
   status String @default("PENDING")
   nextAction String
   createdAt DateTime @default(now())
+  demoId String?
+  careNeed String?
+  followUpDue DateTime?
+  updatedAt DateTime?
 }
