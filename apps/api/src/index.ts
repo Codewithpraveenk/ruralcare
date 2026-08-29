@@ -4,6 +4,7 @@ import express from "express";
 import { z } from "zod";
 import { assessNeed, rankFacilities, type Facility, type Service } from "@ruralcare/shared";
 import { db, initializeDatabase } from "./db.ts";
+import { facilityProvenance } from "./facility-directory.ts";
 
 const app = express();
 app.use(cors()); app.use(express.json({ limit: "100kb" }));
@@ -18,12 +19,13 @@ function coordination() {
   const cases = referrals.map((item) => ({ id: item.id, demoId: item.demoId || `RCC-${String(item.id).slice(-4).toUpperCase()}`, patientLabel: item.patientLabel, careNeed: item.careNeed || serviceLabel(String(item.service)), service: item.service, urgency: item.urgency, facility: item.destinationFacility, stage: stageLabel(String(item.status || "CREATED")), status: item.status || "CREATED", followUpDue: item.followUpDue, updatedAt: item.updatedAt || item.createdAt }));
   const demandNames = ["General medicine", "Maternal care", "Paediatrics", "Diagnostics", "Teleconsultation"];
   const demand = demandNames.map((label) => ({ service: label, count: cases.filter((item) => serviceLabel(String(item.service)) === label).length + (label === "Diagnostics" ? 2 : 0) }));
-  const affected = cases.filter((item) => item.service === "CHILD_HEALTH" && item.facility === "Vadakku Community Health Centre");
-  const alternatives = rankFacilities((db.prepare("SELECT * FROM Facility").all() as Array<Record<string, unknown>>).map(asFacility).filter((item) => item.name !== "Vadakku Community Health Centre"), "CHILD_HEALTH").slice(0, 2).map((item) => ({ name: item.name, distanceKm: item.distanceKm, hours: item.hours }));
-  return { cases, totals: { incoming: cases.length + 8, urgent: cases.filter((item) => item.urgency !== "ROUTINE").length, pending: cases.filter((item) => ["CREATED", "ACCEPTED"].includes(String(item.status))).length, followups: cases.filter((item) => item.status === "FOLLOW_UP" || Boolean(item.followUpDue)).length }, demand, capacityAlerts: [{ title: "Paediatrics unavailable at CHC", service: "CHILD_HEALTH", affected: affected.map((item) => ({ demoId: item.demoId, careNeed: item.careNeed })), alternatives }], activity: cases.slice(0, 5).map((item) => ({ demoId: item.demoId, stage: item.stage, careNeed: item.careNeed, facility: item.facility, updatedAt: item.updatedAt })) };
+  const affected = cases.filter((item) => item.service === "PRIMARY_CARE" && item.facility === "Gopalapuram Dispensary");
+  const alternatives = rankFacilities((db.prepare("SELECT * FROM Facility").all() as Array<Record<string, unknown>>).map(asFacility).filter((item) => item.name !== "Gopalapuram Dispensary"), "PRIMARY_CARE").slice(0, 2).map((item) => ({ name: item.name, distanceKm: item.distanceKm, hours: item.hours }));
+  return { cases, totals: { incoming: cases.length + 8, urgent: cases.filter((item) => item.urgency !== "ROUTINE").length, pending: cases.filter((item) => ["CREATED", "ACCEPTED"].includes(String(item.status))).length, followups: cases.filter((item) => item.status === "FOLLOW_UP" || Boolean(item.followUpDue)).length }, demand, capacityAlerts: [{ title: "Primary care unavailable at Gopalapuram Dispensary", service: "PRIMARY_CARE", affected: affected.map((item) => ({ demoId: item.demoId, careNeed: item.careNeed })), alternatives }], activity: cases.slice(0, 5).map((item) => ({ demoId: item.demoId, stage: item.stage, careNeed: item.careNeed, facility: item.facility, updatedAt: item.updatedAt })) };
 }
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, mode: "synthetic-prototype" }));
+app.get("/api/facility-data", (_req, res) => res.json(facilityProvenance()));
 app.post("/api/triage", (req, res) => {
   const parsed = z.object({ message: z.string().trim().min(2).max(600) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Please enter a short description of the health need." });
@@ -34,7 +36,7 @@ app.get("/api/facilities", async (req, res) => {
   const facilities = db.prepare("SELECT * FROM Facility").all().map((record) => asFacility(record as Record<string, unknown>));
   const candidates = facilities.filter((facility) => facility.services.includes(service));
   const ranked = rankFacilities(facilities, service);
-  res.json({ facilities: ranked, candidates: candidates.map((facility) => ({ ...facility, ranking: ranked.findIndex((item) => item.id === facility.id) + 1, reasons: [`Provides ${serviceLabel(service)}`, `${facility.type.replaceAll("_", " ")} level of care`, `${facility.distanceKm} km from the demo location`, facility.available ? "Available in the current synthetic shift" : "Unavailable in the current synthetic shift" ] })), recommendedId: ranked[0]?.id ?? null, dataLabel: "Synthetic prototype availability - verify before travel" });
+  res.json({ facilities: ranked, candidates: candidates.map((facility) => ({ ...facility, ranking: ranked.findIndex((item) => item.id === facility.id) + 1, reasons: [`Reference service fit: ${serviceLabel(service)}`, `${facility.type.replaceAll("_", " ")} level of care`, `${facility.distanceKm} km calculated from the demo location`, facility.available ? "Available in the current synthetic shift" : "Unavailable in the current synthetic shift" ] })), recommendedId: ranked[0]?.id ?? null, dataLabel: "Real directory identity and coordinates; synthetic prototype availability - verify before travel" });
 });
 app.post("/api/referrals", async (req, res) => {
   const parsed = z.object({ patientLabel: z.string().trim().min(1).max(40), sourceFacility: z.string(), destinationFacility: z.string(), service: z.string(), urgency: z.string(), nextAction: z.string().max(200), careNeed: z.string().max(120).optional() }).safeParse(req.body);

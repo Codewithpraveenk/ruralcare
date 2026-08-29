@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Activity, AlertTriangle, ArrowRight, BadgeCheck, CalendarDays, CheckCircle2, ChevronLeft, CircleAlert, ClipboardPlus, CloudOff, GitCompareArrows, HeartPulse, Hospital, Languages, MapPin, Mic, Navigation, PhoneCall, Route, SearchCheck, ShieldCheck, Sparkles, Stethoscope, UsersRound, Wifi, type LucideIcon } from "lucide-react";
-import { assessNeed, rankFacilities, type Assessment, type Facility } from "@ruralcare/shared";
+import { assessNeed, calculateDistanceKm, rankFacilities, type Assessment, type Facility } from "@ruralcare/shared";
 import "./styles.css";
 
 type View = "intake" | "assessment" | "facilities" | "referral" | "followup" | "dashboard";
@@ -12,21 +12,22 @@ const scenarios = [
   { label: "Pregnancy care", tamil: "கர்ப்ப கால பராமரிப்பு", message: "I am pregnant and need a check-up", Icon: CalendarDays },
   { label: "General check-up", tamil: "பொது பரிசோதனை", message: "I need a general health check-up", Icon: Stethoscope }
 ];
+const demoOrigin = { latitude: 13.041, longitude: 80.224 };
+const withDistance = (facility: Omit<Facility, "distanceKm">): Facility => ({ ...facility, distanceKm: calculateDistanceKm(demoOrigin, facility) });
 const localFacilities: Facility[] = [
-  { id: "aam-kallur", name: "Kallur Ayushman Arogya Mandir", type: "AAM", distanceKm: 1.8, services: ["PRIMARY_CARE", "CHILD_HEALTH", "TELECONSULT"], available: true, hours: "Mon-Sat · 9:00-16:00", address: "Kallur village (synthetic)", phone: "00000 00001", latitude: 11.01, longitude: 78.01 },
-  { id: "phc-melur", name: "Melur Public Health Centre", type: "PHC", distanceKm: 5.6, services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "TELECONSULT"], available: true, hours: "24x7 maternity · OPD 9:00-17:00", address: "Melur block (synthetic)", phone: "00000 00002", latitude: 11.04, longitude: 78.05 },
-  { id: "chc-vadakku", name: "Vadakku Community Health Centre", type: "CHC", distanceKm: 14.2, services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "EMERGENCY"], available: true, hours: "24x7 emergency", address: "Vadakku town (synthetic)", phone: "00000 00003", latitude: 11.12, longitude: 78.11 },
-  { id: "dh-demo", name: "District Government Hospital", type: "DISTRICT_HOSPITAL", distanceKm: 27.5, services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "EMERGENCY"], available: true, hours: "24x7", address: "Demo district HQ (synthetic)", phone: "00000 00004", latitude: 11.24, longitude: 78.2 }
+  withDistance({ id: "public-health-centre-west-mambalam", name: "Public Health Centre", type: "PHC", services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY"], available: true, hours: "Availability simulated for demo", address: "174, Lake View Road, West Mambalam, Chennai 600033", phone: "Not published in supplied directory", latitude: 13.036565, longitude: 80.22176 }),
+  withDistance({ id: "kk-nagar-dispensary", name: "K.K.Nagar Dispensary and Polyclinic", type: "DISPENSARY", services: ["PRIMARY_CARE"], available: true, hours: "Availability simulated for demo", address: "GPRA Complex, CPWD Quarters, K.K.Nagar, Chennai 600078", phone: "Not published in supplied directory", latitude: 13.0368, longitude: 80.2079107 }),
+  withDistance({ id: "kanyakumari-government-medical-college", name: "Kanyakumari Government Hospital and College", type: "DISTRICT_HOSPITAL", services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "EMERGENCY"], available: true, hours: "Availability simulated for demo", address: "Asaripallam, Kanniyakumari 629201", phone: "Not published in supplied directory", latitude: 8.1738722, longitude: 77.3938778 })
 ];
 const queueKey = "ruralcare-referral-queue";
 async function request(path: string, init?: RequestInit) { const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init }); if (!response.ok) throw new Error("Network unavailable"); return response.json(); }
 function queueReferral(data: unknown) { const queue = JSON.parse(localStorage.getItem(queueKey) || "[]"); queue.push(data); localStorage.setItem(queueKey, JSON.stringify(queue)); }
 function IconButton({ Icon, children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { Icon?: LucideIcon }) { return <button className={className} {...props}>{Icon && <Icon size={18} strokeWidth={2.3}/>}<span>{children}</span></button>; }
 const seedCases: StaffCase[] = [
-  { id: "RCC-1048", need: "Child fever & cough", urgency: "HIGH", facility: "Melur PHC", status: "Created", followup: true },
-  { id: "RCC-1047", need: "Antenatal check-up", urgency: "MEDIUM", facility: "Melur PHC", status: "Accepted", followup: false },
-  { id: "RCC-1046", need: "Blood pressure review", urgency: "ROUTINE", facility: "Kallur AAM", status: "Arrived", followup: true },
-  { id: "RCC-1045", need: "Persistent stomach pain", urgency: "HIGH", facility: "Vadakku CHC", status: "Follow-up", followup: true }
+  { id: "RCC-1048", need: "Child fever & cough", urgency: "HIGH", facility: "Public Health Centre", status: "Created", followup: true },
+  { id: "RCC-1047", need: "Antenatal check-up", urgency: "MEDIUM", facility: "Public Health Centre", status: "Accepted", followup: false },
+  { id: "RCC-1046", need: "Blood pressure review", urgency: "ROUTINE", facility: "K.K.Nagar Dispensary", status: "Arrived", followup: true },
+  { id: "RCC-1045", need: "Persistent stomach pain", urgency: "HIGH", facility: "Gopalapuram Dispensary", status: "Follow-up", followup: true }
 ];
 const demand = [{ label: "General medicine", count: 18, color: "#0f766e" }, { label: "Maternal care", count: 9, color: "#d39a1a" }, { label: "Paediatrics", count: 7, color: "#c15a36" }, { label: "Diagnostics", count: 6, color: "#47769b" }, { label: "Teleconsultation", count: 4, color: "#6b7280" }];
 const pipeline = ["Created", "Accepted", "Arrived", "Follow-up"] as const;
@@ -79,7 +80,7 @@ function LegacyApp() {
 }
 type PathView = "input" | "understanding" | "urgency" | "service" | "comparison" | "recommendation" | "reroute" | "referral" | "followup" | "dashboard";
 type FacilityCandidate = Facility & { ranking?: number; reasons?: string[] };
-const unavailableDemoFacility: Facility = { id: "phc-unavailable", name: "Eastbank Public Health Centre", type: "PHC", distanceKm: 3.4, services: ["PRIMARY_CARE", "MATERNITY"], available: false, hours: "Service unavailable in this demo shift", address: "Eastbank (synthetic)", phone: "00000 00005", latitude: 11.03, longitude: 78.03 };
+const unavailableDemoFacility: Facility = withDistance({ id: "gopalapuram-dispensary", name: "Gopalapuram Dispensary", type: "DISPENSARY", services: ["PRIMARY_CARE"], available: false, hours: "Unavailable in this synthetic demo shift", address: "No.1, 1st Street, Gopalapuram, Chennai 600086", phone: "Not published in supplied directory", latitude: 13.049097, longitude: 80.257621 });
 function App() {
   const [view, setView] = useState<PathView>("input"); const [language, setLanguage] = useState<"en" | "ta">("en"); const [message, setMessage] = useState(""); const [assessment, setAssessment] = useState<Assessment | null>(null); const [candidates, setCandidates] = useState<FacilityCandidate[]>([]); const [recommended, setRecommended] = useState<FacilityCandidate | null>(null); const [selected, setSelected] = useState<FacilityCandidate | null>(null); const [patientLabel, setPatientLabel] = useState("Demo patient"); const [notice, setNotice] = useState(""); const [online, setOnline] = useState(navigator.onLine);
   const labels = language === "ta" ? { prompt: "என்ன உதவி தேவை?", next: "தொடரவும்" } : { prompt: "What healthcare help do you need?", next: "Continue" };
