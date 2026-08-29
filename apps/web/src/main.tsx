@@ -1,111 +1,2430 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Activity, AlertTriangle, ArrowRight, BadgeCheck, CalendarDays, CheckCircle2, ChevronLeft, CircleAlert, ClipboardPlus, CloudOff, GitCompareArrows, HeartPulse, Hospital, Languages, MapPin, Mic, Navigation, PhoneCall, Route, SearchCheck, ShieldCheck, Sparkles, Stethoscope, UsersRound, Wifi, type LucideIcon } from "lucide-react";
-import { assessNeed, calculateDistanceKm, rankFacilities, type Assessment, type Facility } from "@ruralcare/shared";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  BadgeCheck,
+  CalendarDays,
+  CheckCircle2,
+  ChevronLeft,
+  CircleAlert,
+  ClipboardPlus,
+  CloudOff,
+  GitCompareArrows,
+  HeartPulse,
+  Hospital,
+  Languages,
+  MapPin,
+  Mic,
+  Navigation,
+  PhoneCall,
+  Route,
+  SearchCheck,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  UsersRound,
+  Wifi,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  assessNeed,
+  calculateDistanceKm,
+  rankFacilities,
+  type Assessment,
+  type Facility,
+} from "@ruralcare/shared";
+import { RouteMap } from "./RouteMap.tsx";
 import "./styles.css";
 
-type View = "intake" | "assessment" | "facilities" | "referral" | "followup" | "dashboard";
-type Referral = { id: string; patientLabel: string; destinationFacility: string; urgency: string; status: string; createdAt: string };
-type StaffCase = { id: string; need: string; urgency: "HIGH" | "MEDIUM" | "ROUTINE"; facility: string; status: "Created" | "Accepted" | "Arrived" | "Follow-up"; followup: boolean };
+type View =
+  | "intake"
+  | "assessment"
+  | "facilities"
+  | "referral"
+  | "followup"
+  | "dashboard";
+type Referral = {
+  id: string;
+  patientLabel: string;
+  destinationFacility: string;
+  urgency: string;
+  status: string;
+  createdAt: string;
+};
+type StaffCase = {
+  id: string;
+  need: string;
+  urgency: "HIGH" | "MEDIUM" | "ROUTINE";
+  facility: string;
+  status: "Created" | "Accepted" | "Arrived" | "Follow-up";
+  followup: boolean;
+};
 const scenarios = [
-  { label: "Child fever", tamil: "குழந்தைக்கு காய்ச்சல்", message: "My child has fever and cough for two days", Icon: HeartPulse },
-  { label: "Pregnancy care", tamil: "கர்ப்ப கால பராமரிப்பு", message: "I am pregnant and need a check-up", Icon: CalendarDays },
-  { label: "General check-up", tamil: "பொது பரிசோதனை", message: "I need a general health check-up", Icon: Stethoscope }
+  {
+    label: "Child fever",
+    tamil: "குழந்தைக்கு காய்ச்சல்",
+    message: "My child has fever and cough for two days",
+    Icon: HeartPulse,
+  },
+  {
+    label: "Pregnancy care",
+    tamil: "கர்ப்ப கால பராமரிப்பு",
+    message: "I am pregnant and need a check-up",
+    Icon: CalendarDays,
+  },
+  {
+    label: "General check-up",
+    tamil: "பொது பரிசோதனை",
+    message: "I need a general health check-up",
+    Icon: Stethoscope,
+  },
 ];
 const demoOrigin = { latitude: 13.041, longitude: 80.224 };
-const withDistance = (facility: Omit<Facility, "distanceKm">): Facility => ({ ...facility, distanceKm: calculateDistanceKm(demoOrigin, facility) });
+const withDistance = (facility: Omit<Facility, "distanceKm">): Facility => ({
+  ...facility,
+  distanceKm: calculateDistanceKm(demoOrigin, facility),
+});
 const localFacilities: Facility[] = [
-  withDistance({ id: "public-health-centre-west-mambalam", name: "Public Health Centre", type: "PHC", services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY"], available: true, hours: "Availability simulated for demo", address: "174, Lake View Road, West Mambalam, Chennai 600033", phone: "Not published in supplied directory", latitude: 13.036565, longitude: 80.22176 }),
-  withDistance({ id: "kk-nagar-dispensary", name: "K.K.Nagar Dispensary and Polyclinic", type: "DISPENSARY", services: ["PRIMARY_CARE"], available: true, hours: "Availability simulated for demo", address: "GPRA Complex, CPWD Quarters, K.K.Nagar, Chennai 600078", phone: "Not published in supplied directory", latitude: 13.0368, longitude: 80.2079107 }),
-  withDistance({ id: "kanyakumari-government-medical-college", name: "Kanyakumari Government Hospital and College", type: "DISTRICT_HOSPITAL", services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "EMERGENCY"], available: true, hours: "Availability simulated for demo", address: "Asaripallam, Kanniyakumari 629201", phone: "Not published in supplied directory", latitude: 8.1738722, longitude: 77.3938778 })
+  withDistance({
+    id: "public-health-centre-west-mambalam",
+    name: "Public Health Centre",
+    type: "PHC",
+    services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY"],
+    available: true,
+    hours: "Availability simulated for demo",
+    address: "174, Lake View Road, West Mambalam, Chennai 600033",
+    phone: "Not published in supplied directory",
+    latitude: 13.036565,
+    longitude: 80.22176,
+  }),
+  withDistance({
+    id: "kk-nagar-dispensary",
+    name: "K.K.Nagar Dispensary and Polyclinic",
+    type: "DISPENSARY",
+    services: ["PRIMARY_CARE"],
+    available: true,
+    hours: "Availability simulated for demo",
+    address: "GPRA Complex, CPWD Quarters, K.K.Nagar, Chennai 600078",
+    phone: "Not published in supplied directory",
+    latitude: 13.0368,
+    longitude: 80.2079107,
+  }),
+  withDistance({
+    id: "kanyakumari-government-medical-college",
+    name: "Kanyakumari Government Hospital and College",
+    type: "DISTRICT_HOSPITAL",
+    services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "EMERGENCY"],
+    available: true,
+    hours: "Availability simulated for demo",
+    address: "Asaripallam, Kanniyakumari 629201",
+    phone: "Not published in supplied directory",
+    latitude: 8.1738722,
+    longitude: 77.3938778,
+  }),
 ];
 const queueKey = "ruralcare-referral-queue";
-async function request(path: string, init?: RequestInit) { const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init }); if (!response.ok) throw new Error("Network unavailable"); return response.json(); }
-function queueReferral(data: unknown) { const queue = JSON.parse(localStorage.getItem(queueKey) || "[]"); queue.push(data); localStorage.setItem(queueKey, JSON.stringify(queue)); }
-function IconButton({ Icon, children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { Icon?: LucideIcon }) { return <button className={className} {...props}>{Icon && <Icon size={18} strokeWidth={2.3}/>}<span>{children}</span></button>; }
+async function request(path: string, init?: RequestInit) {
+  const response = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!response.ok) throw new Error("Network unavailable");
+  return response.json();
+}
+function queueReferral(data: unknown) {
+  const queue = JSON.parse(localStorage.getItem(queueKey) || "[]");
+  queue.push(data);
+  localStorage.setItem(queueKey, JSON.stringify(queue));
+}
+function IconButton({
+  Icon,
+  children,
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { Icon?: LucideIcon }) {
+  return (
+    <button className={className} {...props}>
+      {Icon && <Icon size={18} strokeWidth={2.3} />}
+      <span>{children}</span>
+    </button>
+  );
+}
 const seedCases: StaffCase[] = [
-  { id: "RCC-1048", need: "Child fever & cough", urgency: "HIGH", facility: "Public Health Centre", status: "Created", followup: true },
-  { id: "RCC-1047", need: "Antenatal check-up", urgency: "MEDIUM", facility: "Public Health Centre", status: "Accepted", followup: false },
-  { id: "RCC-1046", need: "Blood pressure review", urgency: "ROUTINE", facility: "K.K.Nagar Dispensary", status: "Arrived", followup: true },
-  { id: "RCC-1045", need: "Persistent stomach pain", urgency: "HIGH", facility: "Gopalapuram Dispensary", status: "Follow-up", followup: true }
+  {
+    id: "RCC-1048",
+    need: "Child fever & cough",
+    urgency: "HIGH",
+    facility: "Public Health Centre",
+    status: "Created",
+    followup: true,
+  },
+  {
+    id: "RCC-1047",
+    need: "Antenatal check-up",
+    urgency: "MEDIUM",
+    facility: "Public Health Centre",
+    status: "Accepted",
+    followup: false,
+  },
+  {
+    id: "RCC-1046",
+    need: "Blood pressure review",
+    urgency: "ROUTINE",
+    facility: "K.K.Nagar Dispensary",
+    status: "Arrived",
+    followup: true,
+  },
+  {
+    id: "RCC-1045",
+    need: "Persistent stomach pain",
+    urgency: "HIGH",
+    facility: "Gopalapuram Dispensary",
+    status: "Follow-up",
+    followup: true,
+  },
 ];
-const demand = [{ label: "General medicine", count: 18, color: "#0f766e" }, { label: "Maternal care", count: 9, color: "#d39a1a" }, { label: "Paediatrics", count: 7, color: "#c15a36" }, { label: "Diagnostics", count: 6, color: "#47769b" }, { label: "Teleconsultation", count: 4, color: "#6b7280" }];
+const demand = [
+  { label: "General medicine", count: 18, color: "#0f766e" },
+  { label: "Maternal care", count: 9, color: "#d39a1a" },
+  { label: "Paediatrics", count: 7, color: "#c15a36" },
+  { label: "Diagnostics", count: 6, color: "#47769b" },
+  { label: "Teleconsultation", count: 4, color: "#6b7280" },
+];
 const pipeline = ["Created", "Accepted", "Arrived", "Follow-up"] as const;
 function StaffDashboard({ onBack }: { onBack: () => void }) {
-  const [cases, setCases] = useState(seedCases); const [alternatives, setAlternatives] = useState(false); const [filter, setFilter] = useState<"All" | "Priority" | "Follow-up">("All");
-  const visible = cases.filter((item) => filter === "All" || filter === "Priority" ? filter === "All" || item.urgency === "HIGH" : item.followup);
-  const counts = { incoming: cases.length + 8, urgent: cases.filter((item) => item.urgency === "HIGH").length + 1, pending: cases.filter((item) => item.status === "Created" || item.status === "Accepted").length, followups: cases.filter((item) => item.followup).length };
-  const advance = (id: string) => setCases((current) => current.map((item) => { if (item.id !== id) return item; const index = pipeline.indexOf(item.status); return { ...item, status: pipeline[Math.min(index + 1, pipeline.length - 1)], followup: index + 1 >= 3 }; }));
-  return <section className="staff-workspace"><div className="staff-heading"><div><p className="kicker">ASHA / PHC COORDINATION WORKSPACE</p><h1>Today’s care pathways.</h1><p>Mock data for the SIH demo. All patient IDs and activities are synthetic and non-identifying.</p></div><button className="back" onClick={onBack}><ChevronLeft/> Citizen journey</button></div><div className="staff-context"><span><Activity size={16}/> Live demo shift · 09:30–16:30</span><span><BadgeCheck size={16}/> 4 facilities reporting</span><span><ShieldCheck size={16}/> No real patient data</span></div><div className="staff-summary"><article><span className="summary-icon teal"><ClipboardPlus/></span><div><b>{counts.incoming}</b><small>Incoming requests</small></div><em>+4 since morning</em></article><article><span className="summary-icon red"><AlertTriangle/></span><div><b>{counts.urgent}</b><small>Urgent / high-risk</small></div><em>Needs attention</em></article><article><span className="summary-icon gold"><Hospital/></span><div><b>{counts.pending}</b><small>Pending referrals</small></div><em>Awaiting hand-off</em></article><article><span className="summary-icon blue"><CalendarDays/></span><div><b>{counts.followups}</b><small>Follow-ups due</small></div><em>Today + tomorrow</em></article></div><div className="staff-grid"><article className="active-cases"><div className="panel-title"><div><p className="eyebrow">ACTIVE CARE COORDINATION</p><h2>Cases that need movement</h2></div><div className="filter-row">{(["All", "Priority", "Follow-up"] as const).map((item) => <button key={item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)}>{item}</button>)}</div></div><div className="case-table"><div className="case-head"><span>Demo patient & need</span><span>Pathway</span><span>Status</span><span>Action</span></div>{visible.map((item) => <div className="case-row" key={item.id}><div><b>{item.id}</b><span>{item.need}</span><i className={`urgency-chip ${item.urgency.toLowerCase()}`}>{item.urgency}</i></div><div><small>Recommended facility</small><b>{item.facility}</b></div><div><span className={`pipeline-chip ${item.status.toLowerCase().replace("-", "")}`}>{item.status}</span></div><IconButton Icon={ArrowRight} className="case-action" onClick={() => advance(item.id)}>{item.status === "Follow-up" ? "Reviewed" : "Advance"}</IconButton></div>)}</div></article><aside className="capacity-alert"><div className="alert-heading"><span><CircleAlert/></span><div><p className="eyebrow">CAPACITY ALERT</p><h2>Paediatrics unavailable at CHC</h2></div></div><p><b>3 child-health requests</b> are affected in today’s demo queue. Route them before unnecessary travel.</p><div className="affected-list"><span>RCC-1048 · Child fever</span><span>RCC-1041 · Breathing concern</span><span>RCC-1039 · Immunisation query</span></div><button onClick={() => setAlternatives(!alternatives)}>{alternatives ? "Hide alternatives" : "View alternative facilities"} <ArrowRight size={16}/></button>{alternatives && <div className="alternatives"><b>Suggested alternatives</b><span>Melur PHC · 5.6 km · Child health available</span><span>District Government Hospital · 27.5 km · 24×7 emergency</span></div>}</aside></div><div className="pipeline-panel"><div className="panel-title"><div><p className="eyebrow">REFERRAL PIPELINE</p><h2>Where each hand-off stands</h2></div><span className="pipeline-note">Tap “Advance” in active cases to update a mock case</span></div><div className="pipeline-steps">{pipeline.map((stage, index) => <div key={stage}><span>{index + 1}</span><b>{stage}</b><small>{cases.filter((item) => item.status === stage).length} cases</small></div>)}</div></div><div className="staff-lower"><article className="demand-overview"><div className="panel-title"><div><p className="eyebrow">SERVICE-DEMAND OVERVIEW</p><h2>What people are seeking</h2></div><small>Today’s mock queue</small></div>{demand.map((item) => <div className="demand-row" key={item.label}><span>{item.label}</span><div><i style={{ width: `${item.count / 18 * 100}%`, background: item.color }}/></div><b>{item.count}</b></div>)}<p className="small">Demand signals support outreach planning; they do not represent clinical prevalence.</p></article><article className="recent-activity"><p className="eyebrow">RECENT REFERRAL ACTIVITY</p><h2>Continuity events</h2><div className="activity-row"><span className="activity-dot green"/><p><b>RCC-1047 accepted</b><small>Melur PHC acknowledged antenatal check-up · 9 min ago</small></p></div><div className="activity-row"><span className="activity-dot amber"/><p><b>Capacity reroute suggested</b><small>Paediatrics request moved away from CHC · 16 min ago</small></p></div><div className="activity-row"><span className="activity-dot blue"/><p><b>Follow-up due today</b><small>RCC-1046 needs an ASHA call-back · 32 min ago</small></p></div><div className="activity-row"><span className="activity-dot green"/><p><b>Referral created offline</b><small>RCC-1048 safely queued and ready to sync · 46 min ago</small></p></div></article></div></section>;
+  const [cases, setCases] = useState(seedCases);
+  const [alternatives, setAlternatives] = useState(false);
+  const [filter, setFilter] = useState<"All" | "Priority" | "Follow-up">("All");
+  const visible = cases.filter((item) =>
+    filter === "All" || filter === "Priority"
+      ? filter === "All" || item.urgency === "HIGH"
+      : item.followup,
+  );
+  const counts = {
+    incoming: cases.length + 8,
+    urgent: cases.filter((item) => item.urgency === "HIGH").length + 1,
+    pending: cases.filter(
+      (item) => item.status === "Created" || item.status === "Accepted",
+    ).length,
+    followups: cases.filter((item) => item.followup).length,
+  };
+  const advance = (id: string) =>
+    setCases((current) =>
+      current.map((item) => {
+        if (item.id !== id) return item;
+        const index = pipeline.indexOf(item.status);
+        return {
+          ...item,
+          status: pipeline[Math.min(index + 1, pipeline.length - 1)],
+          followup: index + 1 >= 3,
+        };
+      }),
+    );
+  return (
+    <section className="staff-workspace">
+      <div className="staff-heading">
+        <div>
+          <p className="kicker">ASHA / PHC COORDINATION WORKSPACE</p>
+          <h1>Today’s care pathways.</h1>
+          <p>
+            Mock data for the SIH demo. All patient IDs and activities are
+            synthetic and non-identifying.
+          </p>
+        </div>
+        <button className="back" onClick={onBack}>
+          <ChevronLeft /> Citizen journey
+        </button>
+      </div>
+      <div className="staff-context">
+        <span>
+          <Activity size={16} /> Live demo shift · 09:30–16:30
+        </span>
+        <span>
+          <BadgeCheck size={16} /> 4 facilities reporting
+        </span>
+        <span>
+          <ShieldCheck size={16} /> No real patient data
+        </span>
+      </div>
+      <div className="staff-summary">
+        <article>
+          <span className="summary-icon teal">
+            <ClipboardPlus />
+          </span>
+          <div>
+            <b>{counts.incoming}</b>
+            <small>Incoming requests</small>
+          </div>
+          <em>+4 since morning</em>
+        </article>
+        <article>
+          <span className="summary-icon red">
+            <AlertTriangle />
+          </span>
+          <div>
+            <b>{counts.urgent}</b>
+            <small>Urgent / high-risk</small>
+          </div>
+          <em>Needs attention</em>
+        </article>
+        <article>
+          <span className="summary-icon gold">
+            <Hospital />
+          </span>
+          <div>
+            <b>{counts.pending}</b>
+            <small>Pending referrals</small>
+          </div>
+          <em>Awaiting hand-off</em>
+        </article>
+        <article>
+          <span className="summary-icon blue">
+            <CalendarDays />
+          </span>
+          <div>
+            <b>{counts.followups}</b>
+            <small>Follow-ups due</small>
+          </div>
+          <em>Today + tomorrow</em>
+        </article>
+      </div>
+      <div className="staff-grid">
+        <article className="active-cases">
+          <div className="panel-title">
+            <div>
+              <p className="eyebrow">ACTIVE CARE COORDINATION</p>
+              <h2>Cases that need movement</h2>
+            </div>
+            <div className="filter-row">
+              {(["All", "Priority", "Follow-up"] as const).map((item) => (
+                <button
+                  key={item}
+                  className={filter === item ? "selected" : ""}
+                  onClick={() => setFilter(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="case-table">
+            <div className="case-head">
+              <span>Demo patient & need</span>
+              <span>Pathway</span>
+              <span>Status</span>
+              <span>Action</span>
+            </div>
+            {visible.map((item) => (
+              <div className="case-row" key={item.id}>
+                <div>
+                  <b>{item.id}</b>
+                  <span>{item.need}</span>
+                  <i className={`urgency-chip ${item.urgency.toLowerCase()}`}>
+                    {item.urgency}
+                  </i>
+                </div>
+                <div>
+                  <small>Recommended facility</small>
+                  <b>{item.facility}</b>
+                </div>
+                <div>
+                  <span
+                    className={`pipeline-chip ${item.status.toLowerCase().replace("-", "")}`}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+                <IconButton
+                  Icon={ArrowRight}
+                  className="case-action"
+                  onClick={() => advance(item.id)}
+                >
+                  {item.status === "Follow-up" ? "Reviewed" : "Advance"}
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        </article>
+        <aside className="capacity-alert">
+          <div className="alert-heading">
+            <span>
+              <CircleAlert />
+            </span>
+            <div>
+              <p className="eyebrow">CAPACITY ALERT</p>
+              <h2>Paediatrics unavailable at CHC</h2>
+            </div>
+          </div>
+          <p>
+            <b>3 child-health requests</b> are affected in today’s demo queue.
+            Route them before unnecessary travel.
+          </p>
+          <div className="affected-list">
+            <span>RCC-1048 · Child fever</span>
+            <span>RCC-1041 · Breathing concern</span>
+            <span>RCC-1039 · Immunisation query</span>
+          </div>
+          <button onClick={() => setAlternatives(!alternatives)}>
+            {alternatives ? "Hide alternatives" : "View alternative facilities"}{" "}
+            <ArrowRight size={16} />
+          </button>
+          {alternatives && (
+            <div className="alternatives">
+              <b>Suggested alternatives</b>
+              <span>Melur PHC · 5.6 km · Child health available</span>
+              <span>
+                District Government Hospital · 27.5 km · 24×7 emergency
+              </span>
+            </div>
+          )}
+        </aside>
+      </div>
+      <div className="pipeline-panel">
+        <div className="panel-title">
+          <div>
+            <p className="eyebrow">REFERRAL PIPELINE</p>
+            <h2>Where each hand-off stands</h2>
+          </div>
+          <span className="pipeline-note">
+            Tap “Advance” in active cases to update a mock case
+          </span>
+        </div>
+        <div className="pipeline-steps">
+          {pipeline.map((stage, index) => (
+            <div key={stage}>
+              <span>{index + 1}</span>
+              <b>{stage}</b>
+              <small>
+                {cases.filter((item) => item.status === stage).length} cases
+              </small>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="staff-lower">
+        <article className="demand-overview">
+          <div className="panel-title">
+            <div>
+              <p className="eyebrow">SERVICE-DEMAND OVERVIEW</p>
+              <h2>What people are seeking</h2>
+            </div>
+            <small>Today’s mock queue</small>
+          </div>
+          {demand.map((item) => (
+            <div className="demand-row" key={item.label}>
+              <span>{item.label}</span>
+              <div>
+                <i
+                  style={{
+                    width: `${(item.count / 18) * 100}%`,
+                    background: item.color,
+                  }}
+                />
+              </div>
+              <b>{item.count}</b>
+            </div>
+          ))}
+          <p className="small">
+            Demand signals support outreach planning; they do not represent
+            clinical prevalence.
+          </p>
+        </article>
+        <article className="recent-activity">
+          <p className="eyebrow">RECENT REFERRAL ACTIVITY</p>
+          <h2>Continuity events</h2>
+          <div className="activity-row">
+            <span className="activity-dot green" />
+            <p>
+              <b>RCC-1047 accepted</b>
+              <small>
+                Melur PHC acknowledged antenatal check-up · 9 min ago
+              </small>
+            </p>
+          </div>
+          <div className="activity-row">
+            <span className="activity-dot amber" />
+            <p>
+              <b>Capacity reroute suggested</b>
+              <small>
+                Paediatrics request moved away from CHC · 16 min ago
+              </small>
+            </p>
+          </div>
+          <div className="activity-row">
+            <span className="activity-dot blue" />
+            <p>
+              <b>Follow-up due today</b>
+              <small>RCC-1046 needs an ASHA call-back · 32 min ago</small>
+            </p>
+          </div>
+          <div className="activity-row">
+            <span className="activity-dot green" />
+            <p>
+              <b>Referral created offline</b>
+              <small>
+                RCC-1048 safely queued and ready to sync · 46 min ago
+              </small>
+            </p>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
 }
 
-type CoordinationCase = { id: string; demoId: string; careNeed: string; urgency: "EMERGENCY" | "URGENT" | "ROUTINE"; facility: string; stage: string; status: "CREATED" | "ACCEPTED" | "ARRIVED" | "FOLLOW_UP"; followUpDue?: string; updatedAt: string };
-type Coordination = { cases: CoordinationCase[]; totals: { incoming: number; urgent: number; pending: number; followups: number }; demand: { service: string; count: number }[]; capacityAlerts: { title: string; affected: { demoId: string; careNeed: string }[]; alternatives: { name: string; distanceKm: number; hours: string }[] }[]; activity: { demoId: string; stage: string; careNeed: string; facility: string; updatedAt: string }[] };
+type CoordinationCase = {
+  id: string;
+  demoId: string;
+  careNeed: string;
+  urgency: "EMERGENCY" | "URGENT" | "ROUTINE";
+  facility: string;
+  stage: string;
+  status: "CREATED" | "ACCEPTED" | "ARRIVED" | "FOLLOW_UP";
+  followUpDue?: string;
+  updatedAt: string;
+};
+type Coordination = {
+  cases: CoordinationCase[];
+  totals: {
+    incoming: number;
+    urgent: number;
+    pending: number;
+    followups: number;
+  };
+  demand: { service: string; count: number }[];
+  capacityAlerts: {
+    title: string;
+    affected: { demoId: string; careNeed: string }[];
+    alternatives: { name: string; distanceKm: number; hours: string }[];
+  }[];
+  activity: {
+    demoId: string;
+    stage: string;
+    careNeed: string;
+    facility: string;
+    updatedAt: string;
+  }[];
+};
 const staffQueueKey = "ruralcare-staff-action-queue";
-const fallbackCoordination: Coordination = { cases: seedCases.map((item, index) => ({ id: `fallback-${index}`, demoId: item.id, careNeed: item.need, urgency: item.urgency === "HIGH" ? "URGENT" : item.urgency === "MEDIUM" ? "URGENT" : "ROUTINE", facility: item.facility, stage: item.status, status: item.status === "Follow-up" ? "FOLLOW_UP" : item.status.toUpperCase() as CoordinationCase["status"], updatedAt: new Date().toISOString() })), totals: { incoming: 12, urgent: 3, pending: 2, followups: 3 }, demand: [{ service: "General medicine", count: 8 }, { service: "Maternal care", count: 4 }, { service: "Paediatrics", count: 5 }, { service: "Diagnostics", count: 2 }, { service: "Teleconsultation", count: 1 }], capacityAlerts: [{ title: "Paediatrics unavailable at CHC", affected: [{ demoId: "RCC-1041", careNeed: "Breathing concern" }, { demoId: "RCC-1039", careNeed: "Immunisation query" }], alternatives: [{ name: "Melur Public Health Centre", distanceKm: 5.6, hours: "Child health available" }] }], activity: [{ demoId: "RCC-1047", stage: "Accepted", careNeed: "Antenatal check-up", facility: "Melur Public Health Centre", updatedAt: new Date().toISOString() }] };
-function queueStaffAction(id: string, status: string) { const items = JSON.parse(localStorage.getItem(staffQueueKey) || "[]"); items.push({ id, status }); localStorage.setItem(staffQueueKey, JSON.stringify(items)); }
+const fallbackCoordination: Coordination = {
+  cases: seedCases.map((item, index) => ({
+    id: `fallback-${index}`,
+    demoId: item.id,
+    careNeed: item.need,
+    urgency:
+      item.urgency === "HIGH"
+        ? "URGENT"
+        : item.urgency === "MEDIUM"
+          ? "URGENT"
+          : "ROUTINE",
+    facility: item.facility,
+    stage: item.status,
+    status:
+      item.status === "Follow-up"
+        ? "FOLLOW_UP"
+        : (item.status.toUpperCase() as CoordinationCase["status"]),
+    updatedAt: new Date().toISOString(),
+  })),
+  totals: { incoming: 12, urgent: 3, pending: 2, followups: 3 },
+  demand: [
+    { service: "General medicine", count: 8 },
+    { service: "Maternal care", count: 4 },
+    { service: "Paediatrics", count: 5 },
+    { service: "Diagnostics", count: 2 },
+    { service: "Teleconsultation", count: 1 },
+  ],
+  capacityAlerts: [
+    {
+      title: "Paediatrics unavailable at CHC",
+      affected: [
+        { demoId: "RCC-1041", careNeed: "Breathing concern" },
+        { demoId: "RCC-1039", careNeed: "Immunisation query" },
+      ],
+      alternatives: [
+        {
+          name: "Melur Public Health Centre",
+          distanceKm: 5.6,
+          hours: "Child health available",
+        },
+      ],
+    },
+  ],
+  activity: [
+    {
+      demoId: "RCC-1047",
+      stage: "Accepted",
+      careNeed: "Antenatal check-up",
+      facility: "Melur Public Health Centre",
+      updatedAt: new Date().toISOString(),
+    },
+  ],
+};
+function queueStaffAction(id: string, status: string) {
+  const items = JSON.parse(localStorage.getItem(staffQueueKey) || "[]");
+  items.push({ id, status });
+  localStorage.setItem(staffQueueKey, JSON.stringify(items));
+}
 function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
-  const [data, setData] = useState<Coordination>(fallbackCoordination); const [filter, setFilter] = useState<"All" | "Priority" | "Follow-up">("All"); const [alternatives, setAlternatives] = useState(false); const [message, setMessage] = useState("");
-  const refresh = async () => { try { const result = await request("/api/coordination"); setData(result); setMessage(""); } catch { setMessage("Showing the last saved coordination view. Reconnect to refresh live demo records."); } };
-  const syncActions = async () => { const queued = JSON.parse(localStorage.getItem(staffQueueKey) || "[]"); if (!queued.length) return; try { await Promise.all(queued.map((item: { id: string; status: string }) => request(`/api/referrals/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: item.status }) }))); localStorage.removeItem(staffQueueKey); await refresh(); setMessage("Queued staff updates synced."); } catch { /* keep actions for the next reconnect */ } };
-  useEffect(() => { refresh(); syncActions(); const onOnline = () => syncActions(); addEventListener("online", onOnline); return () => removeEventListener("online", onOnline); }, []);
-  const advance = async (item: CoordinationCase) => { const order: CoordinationCase["status"][] = ["CREATED", "ACCEPTED", "ARRIVED", "FOLLOW_UP"]; const next = order[Math.min(order.indexOf(item.status) + 1, order.length - 1)]; setData((current) => current ? { ...current, cases: current.cases.map((row) => row.id === item.id ? { ...row, status: next, stage: next === "FOLLOW_UP" ? "Follow-up" : next.slice(0, 1) + next.slice(1).toLowerCase() } : row) } : current); try { await request(`/api/referrals/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: next }) }); await refresh(); } catch { queueStaffAction(item.id, next); setMessage("Offline: staff update saved and will sync when the connection returns."); } };
-  const visible = data.cases.filter((item) => filter === "All" || filter === "Priority" ? filter === "All" || item.urgency !== "ROUTINE" : item.status === "FOLLOW_UP");
+  const [data, setData] = useState<Coordination>(fallbackCoordination);
+  const [filter, setFilter] = useState<"All" | "Priority" | "Follow-up">("All");
+  const [alternatives, setAlternatives] = useState(false);
+  const [message, setMessage] = useState("");
+  const refresh = async () => {
+    try {
+      const result = await request("/api/coordination");
+      setData(result);
+      setMessage("");
+    } catch {
+      setMessage(
+        "Showing the last saved coordination view. Reconnect to refresh live demo records.",
+      );
+    }
+  };
+  const syncActions = async () => {
+    const queued = JSON.parse(localStorage.getItem(staffQueueKey) || "[]");
+    if (!queued.length) return;
+    try {
+      await Promise.all(
+        queued.map((item: { id: string; status: string }) =>
+          request(`/api/referrals/${item.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: item.status }),
+          }),
+        ),
+      );
+      localStorage.removeItem(staffQueueKey);
+      await refresh();
+      setMessage("Queued staff updates synced.");
+    } catch {
+      /* keep actions for the next reconnect */
+    }
+  };
+  useEffect(() => {
+    refresh();
+    syncActions();
+    const onOnline = () => syncActions();
+    addEventListener("online", onOnline);
+    return () => removeEventListener("online", onOnline);
+  }, []);
+  const advance = async (item: CoordinationCase) => {
+    const order: CoordinationCase["status"][] = [
+      "CREATED",
+      "ACCEPTED",
+      "ARRIVED",
+      "FOLLOW_UP",
+    ];
+    const next =
+      order[Math.min(order.indexOf(item.status) + 1, order.length - 1)];
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            cases: current.cases.map((row) =>
+              row.id === item.id
+                ? {
+                    ...row,
+                    status: next,
+                    stage:
+                      next === "FOLLOW_UP"
+                        ? "Follow-up"
+                        : next.slice(0, 1) + next.slice(1).toLowerCase(),
+                  }
+                : row,
+            ),
+          }
+        : current,
+    );
+    try {
+      await request(`/api/referrals/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: next }),
+      });
+      await refresh();
+    } catch {
+      queueStaffAction(item.id, next);
+      setMessage(
+        "Offline: staff update saved and will sync when the connection returns.",
+      );
+    }
+  };
+  const visible = data.cases.filter((item) =>
+    filter === "All" || filter === "Priority"
+      ? filter === "All" || item.urgency !== "ROUTINE"
+      : item.status === "FOLLOW_UP",
+  );
   const alert = data.capacityAlerts[0];
-  return <section className="staff-workspace"><div className="staff-heading"><div><p className="kicker">ASHA / PHC COORDINATION WORKSPACE</p><h1>Today’s care pathways.</h1><p>Connected to the same local synthetic records created in the citizen journey. No real patient data is shown.</p></div><button className="back" onClick={onBack}><ChevronLeft/> Citizen journey</button></div><div className="staff-context"><span><Activity size={16}/> Live local demo shift</span><span><BadgeCheck size={16}/> {data.cases.length} shared care records</span><span><ShieldCheck size={16}/> Synthetic and non-identifying</span></div>{message && <div className="staff-message">{message}</div>}<div className="staff-summary"><article><span className="summary-icon teal"><ClipboardPlus/></span><div><b>{data.totals.incoming}</b><small>Incoming requests</small></div><em>Local demo queue</em></article><article><span className="summary-icon red"><AlertTriangle/></span><div><b>{data.totals.urgent}</b><small>Urgent / high-risk</small></div><em>Needs attention</em></article><article><span className="summary-icon gold"><Hospital/></span><div><b>{data.totals.pending}</b><small>Pending referrals</small></div><em>Awaiting hand-off</em></article><article><span className="summary-icon blue"><CalendarDays/></span><div><b>{data.totals.followups}</b><small>Follow-ups due</small></div><em>Today + tomorrow</em></article></div><div className="staff-grid"><article className="active-cases"><div className="panel-title"><div><p className="eyebrow">ACTIVE CARE COORDINATION</p><h2>Cases that need movement</h2></div><div className="filter-row">{(["All", "Priority", "Follow-up"] as const).map((item) => <button key={item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)}>{item}</button>)}</div></div><div className="case-table"><div className="case-head"><span>Demo patient & need</span><span>Pathway</span><span>Status</span><span>Action</span></div>{visible.map((item) => <div className="case-row" key={item.id}><div><b>{item.demoId}</b><span>{item.careNeed}</span><i className={`urgency-chip ${item.urgency === "ROUTINE" ? "routine" : item.urgency === "EMERGENCY" ? "high" : "medium"}`}>{item.urgency === "ROUTINE" ? "ROUTINE" : "PRIORITY"}</i></div><div><small>Recommended facility</small><b>{item.facility}</b></div><div><span className={`pipeline-chip ${item.status.toLowerCase().replace("_", "")}`}>{item.stage}</span></div><IconButton Icon={ArrowRight} className="case-action" onClick={() => advance(item)}>{item.status === "FOLLOW_UP" ? "Reviewed" : "Advance"}</IconButton></div>)}</div></article>{alert && <aside className="capacity-alert"><div className="alert-heading"><span><CircleAlert/></span><div><p className="eyebrow">CAPACITY ALERT</p><h2>{alert.title}</h2></div></div><p><b>{alert.affected.length} child-health requests</b> are affected in the synthetic shift queue.</p><div className="affected-list">{alert.affected.map((item) => <span key={item.demoId}>{item.demoId} · {item.careNeed}</span>)}</div><button onClick={() => setAlternatives(!alternatives)}>{alternatives ? "Hide alternatives" : "View alternative facilities"} <ArrowRight size={16}/></button>{alternatives && <div className="alternatives"><b>Suggested alternatives</b>{alert.alternatives.map((item) => <span key={item.name}>{item.name} · {item.distanceKm} km · {item.hours}</span>)}</div>}</aside>}</div><div className="pipeline-panel"><div className="panel-title"><div><p className="eyebrow">REFERRAL PIPELINE</p><h2>Where each hand-off stands</h2></div><span className="pipeline-note">Advance a case to update this shared local record</span></div><div className="pipeline-steps">{["CREATED", "ACCEPTED", "ARRIVED", "FOLLOW_UP"].map((stage, index) => <div key={stage}><span>{index + 1}</span><b>{stage === "FOLLOW_UP" ? "Follow-up" : stage.slice(0, 1) + stage.slice(1).toLowerCase()}</b><small>{data.cases.filter((item) => item.status === stage).length} cases</small></div>)}</div></div><div className="staff-lower"><article className="demand-overview"><div className="panel-title"><div><p className="eyebrow">SERVICE-DEMAND OVERVIEW</p><h2>What people are seeking</h2></div><small>Shared local records</small></div>{data.demand.map((item, index) => <div className="demand-row" key={item.service}><span>{item.service}</span><div><i style={{ width: `${Math.max(12, Math.min(100, item.count * 15))}%`, background: ["#0f766e", "#d39a1a", "#c15a36", "#47769b", "#6b7280"][index] }}/></div><b>{item.count}</b></div>)}<p className="small">Signals support demo outreach planning; they are not clinical prevalence data.</p></article><article className="recent-activity"><p className="eyebrow">RECENT REFERRAL ACTIVITY</p><h2>Continuity events</h2>{data.activity.map((item, index) => <div className="activity-row" key={`${item.demoId}-${index}`}><span className={`activity-dot ${index % 3 === 0 ? "green" : index % 3 === 1 ? "amber" : "blue"}`}/><p><b>{item.demoId} · {item.stage}</b><small>{item.careNeed} → {item.facility}</small></p></div>)}</article></div></section>;
+  return (
+    <section className="staff-workspace">
+      <div className="staff-heading">
+        <div>
+          <p className="kicker">ASHA / PHC COORDINATION WORKSPACE</p>
+          <h1>Today’s care pathways.</h1>
+          <p>
+            Connected to the same local synthetic records created in the citizen
+            journey. No real patient data is shown.
+          </p>
+        </div>
+        <button className="back" onClick={onBack}>
+          <ChevronLeft /> Citizen journey
+        </button>
+      </div>
+      <div className="staff-context">
+        <span>
+          <Activity size={16} /> Live local demo shift
+        </span>
+        <span>
+          <BadgeCheck size={16} /> {data.cases.length} shared care records
+        </span>
+        <span>
+          <ShieldCheck size={16} /> Synthetic and non-identifying
+        </span>
+      </div>
+      {message && <div className="staff-message">{message}</div>}
+      <div className="staff-summary">
+        <article>
+          <span className="summary-icon teal">
+            <ClipboardPlus />
+          </span>
+          <div>
+            <b>{data.totals.incoming}</b>
+            <small>Incoming requests</small>
+          </div>
+          <em>Local demo queue</em>
+        </article>
+        <article>
+          <span className="summary-icon red">
+            <AlertTriangle />
+          </span>
+          <div>
+            <b>{data.totals.urgent}</b>
+            <small>Urgent / high-risk</small>
+          </div>
+          <em>Needs attention</em>
+        </article>
+        <article>
+          <span className="summary-icon gold">
+            <Hospital />
+          </span>
+          <div>
+            <b>{data.totals.pending}</b>
+            <small>Pending referrals</small>
+          </div>
+          <em>Awaiting hand-off</em>
+        </article>
+        <article>
+          <span className="summary-icon blue">
+            <CalendarDays />
+          </span>
+          <div>
+            <b>{data.totals.followups}</b>
+            <small>Follow-ups due</small>
+          </div>
+          <em>Today + tomorrow</em>
+        </article>
+      </div>
+      <div className="staff-grid">
+        <article className="active-cases">
+          <div className="panel-title">
+            <div>
+              <p className="eyebrow">ACTIVE CARE COORDINATION</p>
+              <h2>Cases that need movement</h2>
+            </div>
+            <div className="filter-row">
+              {(["All", "Priority", "Follow-up"] as const).map((item) => (
+                <button
+                  key={item}
+                  className={filter === item ? "selected" : ""}
+                  onClick={() => setFilter(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="case-table">
+            <div className="case-head">
+              <span>Demo patient & need</span>
+              <span>Pathway</span>
+              <span>Status</span>
+              <span>Action</span>
+            </div>
+            {visible.map((item) => (
+              <div className="case-row" key={item.id}>
+                <div>
+                  <b>{item.demoId}</b>
+                  <span>{item.careNeed}</span>
+                  <i
+                    className={`urgency-chip ${item.urgency === "ROUTINE" ? "routine" : item.urgency === "EMERGENCY" ? "high" : "medium"}`}
+                  >
+                    {item.urgency === "ROUTINE" ? "ROUTINE" : "PRIORITY"}
+                  </i>
+                </div>
+                <div>
+                  <small>Recommended facility</small>
+                  <b>{item.facility}</b>
+                </div>
+                <div>
+                  <span
+                    className={`pipeline-chip ${item.status.toLowerCase().replace("_", "")}`}
+                  >
+                    {item.stage}
+                  </span>
+                </div>
+                <IconButton
+                  Icon={ArrowRight}
+                  className="case-action"
+                  onClick={() => advance(item)}
+                >
+                  {item.status === "FOLLOW_UP" ? "Reviewed" : "Advance"}
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        </article>
+        {alert && (
+          <aside className="capacity-alert">
+            <div className="alert-heading">
+              <span>
+                <CircleAlert />
+              </span>
+              <div>
+                <p className="eyebrow">CAPACITY ALERT</p>
+                <h2>{alert.title}</h2>
+              </div>
+            </div>
+            <p>
+              <b>{alert.affected.length} child-health requests</b> are affected
+              in the synthetic shift queue.
+            </p>
+            <div className="affected-list">
+              {alert.affected.map((item) => (
+                <span key={item.demoId}>
+                  {item.demoId} · {item.careNeed}
+                </span>
+              ))}
+            </div>
+            <button onClick={() => setAlternatives(!alternatives)}>
+              {alternatives
+                ? "Hide alternatives"
+                : "View alternative facilities"}{" "}
+              <ArrowRight size={16} />
+            </button>
+            {alternatives && (
+              <div className="alternatives">
+                <b>Suggested alternatives</b>
+                {alert.alternatives.map((item) => (
+                  <span key={item.name}>
+                    {item.name} · {item.distanceKm} km · {item.hours}
+                  </span>
+                ))}
+              </div>
+            )}
+          </aside>
+        )}
+      </div>
+      <div className="pipeline-panel">
+        <div className="panel-title">
+          <div>
+            <p className="eyebrow">REFERRAL PIPELINE</p>
+            <h2>Where each hand-off stands</h2>
+          </div>
+          <span className="pipeline-note">
+            Advance a case to update this shared local record
+          </span>
+        </div>
+        <div className="pipeline-steps">
+          {["CREATED", "ACCEPTED", "ARRIVED", "FOLLOW_UP"].map(
+            (stage, index) => (
+              <div key={stage}>
+                <span>{index + 1}</span>
+                <b>
+                  {stage === "FOLLOW_UP"
+                    ? "Follow-up"
+                    : stage.slice(0, 1) + stage.slice(1).toLowerCase()}
+                </b>
+                <small>
+                  {data.cases.filter((item) => item.status === stage).length}{" "}
+                  cases
+                </small>
+              </div>
+            ),
+          )}
+        </div>
+      </div>
+      <div className="staff-lower">
+        <article className="demand-overview">
+          <div className="panel-title">
+            <div>
+              <p className="eyebrow">SERVICE-DEMAND OVERVIEW</p>
+              <h2>What people are seeking</h2>
+            </div>
+            <small>Shared local records</small>
+          </div>
+          {data.demand.map((item, index) => (
+            <div className="demand-row" key={item.service}>
+              <span>{item.service}</span>
+              <div>
+                <i
+                  style={{
+                    width: `${Math.max(12, Math.min(100, item.count * 15))}%`,
+                    background: [
+                      "#0f766e",
+                      "#d39a1a",
+                      "#c15a36",
+                      "#47769b",
+                      "#6b7280",
+                    ][index],
+                  }}
+                />
+              </div>
+              <b>{item.count}</b>
+            </div>
+          ))}
+          <p className="small">
+            Signals support demo outreach planning; they are not clinical
+            prevalence data.
+          </p>
+        </article>
+        <article className="recent-activity">
+          <p className="eyebrow">RECENT REFERRAL ACTIVITY</p>
+          <h2>Continuity events</h2>
+          {data.activity.map((item, index) => (
+            <div className="activity-row" key={`${item.demoId}-${index}`}>
+              <span
+                className={`activity-dot ${index % 3 === 0 ? "green" : index % 3 === 1 ? "amber" : "blue"}`}
+              />
+              <p>
+                <b>
+                  {item.demoId} · {item.stage}
+                </b>
+                <small>
+                  {item.careNeed} → {item.facility}
+                </small>
+              </p>
+            </div>
+          ))}
+        </article>
+      </div>
+    </section>
+  );
 }
 
 function LegacyApp() {
-  const [language, setLanguage] = useState<"en" | "ta">("en"); const [view, setView] = useState<View>("intake"); const [message, setMessage] = useState(""); const [assessment, setAssessment] = useState<Assessment | null>(null); const [facilities, setFacilities] = useState<Facility[]>([]); const [selected, setSelected] = useState<Facility | null>(null); const [patientLabel, setPatientLabel] = useState("Demo patient"); const [notice, setNotice] = useState(""); const [online, setOnline] = useState(navigator.onLine);
-  const t = useMemo(() => language === "ta" ? { home: "முகப்பு", assistant: "உதவி முறை", title: "சரியான பராமரிப்பு. சரியான நேரத்தில்.", intro: "நாங்கள் உங்கள் தேவையைப் புரிந்து கொண்டு அருகிலுள்ள சரியான பொது சுகாதார சேவைக்குச் செலுத்துகிறோம்.", prompt: "என்ன உதவி தேவை?", next: "பாதுகாப்பாக தொடரவும்", staff: "பணியாளர் பார்வை" } : { home: "Care Compass", assistant: "ASHA-assisted mode", title: "Right care. Right pathway.", intro: "Tell us what you need. We connect you to an appropriate public health service—clearly and safely.", prompt: "What do you need help with?", next: "Continue safely", staff: "Staff view" }, [language]);
-  const step = view === "intake" ? 1 : view === "assessment" ? 2 : view === "facilities" ? 3 : view === "referral" ? 4 : 5;
-  useEffect(() => { const on = () => setOnline(true); const off = () => setOnline(false); addEventListener("online", on); addEventListener("offline", off); return () => { removeEventListener("online", on); removeEventListener("offline", off); }; }, []);
-  useEffect(() => { if (!online) return; const queued = JSON.parse(localStorage.getItem(queueKey) || "[]"); if (!queued.length) return; Promise.all(queued.map((item: unknown) => request("/api/referrals", { method: "POST", body: JSON.stringify(item) }))).then(() => { localStorage.removeItem(queueKey); setNotice("Offline referral synced. Your continuity record is up to date."); }).catch(() => undefined); }, [online]);
-  async function triage() { if (!message.trim()) return setNotice("Please describe the health need first."); const local = assessNeed(message); setAssessment(local); setView("assessment"); try { const result = await request("/api/triage", { method: "POST", body: JSON.stringify({ message }) }); setAssessment(result.assessment); } catch { setNotice("Offline-safe assessment is active. You can continue without internet."); } }
-  async function findFacilities() { if (!assessment) return; setFacilities(rankFacilities(localFacilities, assessment.service)); setView("facilities"); try { const result = await request(`/api/facilities?service=${assessment.service}`); setFacilities(result.facilities); } catch { setNotice("Showing cached prototype facility data. Please verify before travel."); } }
-  async function createReferral() { if (!selected || !assessment) return; const body = { patientLabel, sourceFacility: "ASHA-assisted intake", destinationFacility: selected.name, service: assessment.service, urgency: assessment.urgency, nextAction: assessment.nextAction, careNeed: assessment.symptoms.join(", ") }; try { const result = await request("/api/referrals", { method: "POST", body: JSON.stringify(body) }); setNotice(`Referral ${result.referral.demoId} created. Follow-up is scheduled for tomorrow.`); } catch { queueReferral(body); setNotice("No signal? Referral has been safely saved on this device and will sync later."); } setView("followup"); }
-  function openDashboard() { setView("dashboard"); }
-  function startVoice() { const Speech = window.SpeechRecognition || window.webkitSpeechRecognition; if (!Speech) return setNotice("Voice input is unavailable in this browser. Please type your need."); const recognition = new Speech(); recognition.lang = language === "ta" ? "ta-IN" : "en-IN"; recognition.onresult = (event: any) => setMessage(event.results[0][0].transcript); recognition.start(); }
-  function emergency() { setMessage("I need emergency help: chest pain"); setAssessment(assessNeed("I need emergency help: chest pain")); setView("assessment"); }
-  return <div className="app-shell"><aside><div className="brand"><div className="brand-mark"><HeartPulse/></div><div><b>RuralCare</b><span>CONNECT</span></div></div><nav><button className={view !== "dashboard" ? "active" : ""} onClick={() => setView("intake")}><Sparkles/> {t.home}</button><button onClick={openDashboard}><UsersRound/> {t.staff}</button></nav><div className="aside-card"><div className="signal"><Wifi size={16}/> Offline-first ready</div><p>Saved care journeys continue even when the signal does not.</p><span>Synthetic SIH prototype</span></div><div className="aside-bottom"><ShieldCheck size={18}/><p><b>Safety bounded</b><br/>Not a diagnosis tool</p></div></aside><main><header className="topbar"><div className="mobile-brand"><HeartPulse/><b>RuralCare</b></div><div className="mode-pill"><UsersRound size={15}/>{t.assistant}</div><div className="top-actions"><button className="language" onClick={() => setLanguage(language === "en" ? "ta" : "en")}><Languages size={17}/>{language === "en" ? "தமிழ்" : "English"}</button><button className={online ? "connection online" : "connection offline"}>{online ? <Wifi size={16}/> : <CloudOff size={16}/>}{online ? "Connected" : "Offline"}</button></div></header><div className="prototype-banner"><BadgeCheck size={17}/><span>Public-health navigation prototype</span><i>•</i><span>Synthetic demo data</span><i>•</i><span>Always verify availability before travel</span></div>
-  {view !== "dashboard" && <div className="journey"><span>YOUR CARE JOURNEY</span>{["Share", "Understand", "Match", "Refer", "Follow up"].map((name, i) => <div className={i + 1 <= step ? "journey-step done" : "journey-step"} key={name}><b>{i + 1}</b><small>{name}</small></div>)}</div>}
-  {notice && <div className="toast"><BadgeCheck size={18}/><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div>}
-  {view === "intake" && <section className="home-grid"><div className="welcome-panel"><p className="kicker">CARE COMPASS · RURAL TAMIL NADU</p><h1>{t.title}</h1><p className="lead">{t.intro}</p><div className="input-panel"><label>{t.prompt}<span>Local language welcome</span></label><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={language === "ta" ? "உதாரணம்: குழந்தைக்கு இரண்டு நாட்களாக காய்ச்சல் உள்ளது" : "Example: My child has fever and cough for two days"}/><div className="input-actions"><IconButton Icon={Mic} className="ghost" onClick={startVoice}>Speak instead</IconButton><IconButton Icon={ArrowRight} onClick={triage}>{t.next}</IconButton></div></div><div className="safety-strip"><ShieldCheck/><p><b>Clear, not clinical.</b> We help you reach public care; we do not diagnose or prescribe.</p></div></div><div className="right-rail"><div className="quick-panel"><div className="panel-head"><div><span className="eyebrow">GUIDED START</span><h2>Common needs</h2></div><Sparkles className="accent"/></div>{scenarios.map(({ label, tamil, message: scenario, Icon }) => <button className="scenario" key={label} onClick={() => setMessage(scenario)}><span className="scenario-icon"><Icon size={20}/></span><span><b>{label}</b><small>{tamil}</small></span><ArrowRight size={17}/></button>)}</div><button className="emergency-button" onClick={emergency}><AlertTriangle/><span><b>Emergency? Act now</b><small>Immediate human-care guidance</small></span><ArrowRight/></button><div className="signal-card"><MapPin/><div><b>District demo readiness</b><span>4 public facilities · 7 care services</span></div><BadgeCheck/></div></div></section>}
-  {view === "assessment" && assessment && <section className="flow-card assessment-layout"><button className="back" onClick={() => setView("intake")}><ChevronLeft/> Back to request</button><div className="flow-title"><p className="kicker">WE LISTENED. PLEASE CONFIRM.</p><h1>{assessment.urgency === "EMERGENCY" ? "Act immediately" : "Your care pathway"}</h1><p>{assessment.explanation}</p></div><div className={`urgency-card ${assessment.urgency.toLowerCase()}`}><div>{assessment.urgency === "EMERGENCY" ? <AlertTriangle/> : <ShieldCheck/>}</div><section><span>SAFETY GUIDANCE</span><h2>{assessment.urgency}</h2><p>{assessment.nextAction}</p></section></div><div className="understood"><div><span>Suggested public service</span><b>{assessment.service.replaceAll("_", " ")}</b></div><div><span>Language</span><b>{assessment.language === "ta" ? "Tamil" : assessment.language}</b></div><div><span>Need signals</span><b>{assessment.symptoms.join(", ")}</b></div></div>{assessment.urgency === "EMERGENCY" ? <div className="emergency-actions"><IconButton Icon={PhoneCall} onClick={() => setNotice("Demo emergency SMS alert prepared.")}>Send demo emergency alert</IconButton><p>This prototype deliberately does not delay emergency care with chat or matching.</p></div> : <div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("intake")}>Edit request</IconButton><IconButton Icon={Navigation} onClick={findFacilities}>Find suitable public care</IconButton></div>}</section>}
-  {view === "facilities" && assessment && <section className="facilities-page"><div className="section-heading"><div><p className="kicker">CARE MATCHING · NOT JUST NEAREST</p><h1>Public services ready for your need</h1><p>We prioritize required service, demo availability, and travel distance.</p></div><div className="matching-chip"><BadgeCheck/> Safety-checked pathway</div></div><div className="facility-list">{facilities.map((facility, index) => <article className="facility-card" key={facility.id}><div className="rank">0{index + 1}</div><div className="facility-main"><div className="facility-top"><span className="level-tag">{facility.type.replaceAll("_", " ")}</span><span className="live-dot">● Available in demo</span></div><h2>{facility.name}</h2><p><MapPin size={16}/>{facility.address} · <b>{facility.distanceKm} km away</b></p><div className="service-tags">{facility.services.slice(0, 3).map((service) => <span key={service}>{service.replaceAll("_", " ")}</span>)}</div></div><div className="facility-side"><p><b>{facility.hours}</b><small>Demo service hours</small></p><IconButton Icon={ArrowRight} onClick={() => { setSelected(facility); setView("referral"); }}>Choose pathway</IconButton></div></article>)}</div><button className="back text-button" onClick={() => setView("assessment")}><ChevronLeft/> Review assessment</button></section>}
-  {view === "referral" && selected && assessment && <section className="referral-page"><div className="referral-card"><div className="referral-header"><div className="brand-mark"><ClipboardPlus/></div><div><span>RURALCARE CONNECT</span><h1>Continuity pass</h1></div><BadgeCheck/></div><p className="muted">A simple hand-off so the next public facility understands the care need without making the patient start over.</p><label>Patient label <small>Demo only; no real personal data</small><input value={patientLabel} onChange={(e) => setPatientLabel(e.target.value)} maxLength={40}/></label><div className="pass-row"><span>CARE NEED</span><b>{assessment.service.replaceAll("_", " ")}</b></div><div className="pass-row"><span>ROUTED TO</span><b>{selected.name}</b></div><div className="pass-row"><span>NEXT ACTION</span><b>{assessment.nextAction}</b></div><div className="referral-foot"><ShieldCheck/><span>Structured, shareable context · Prototype only</span></div></div><div className="referral-copy"><p className="kicker">REFERRAL CONTINUITY</p><h1>One care story, carried forward.</h1><p>The novelty is not merely AI triage. It is a safety-bounded hand-off from citizen need to a suitable public service, with a follow-up loop.</p><div className="mini-points"><span><BadgeCheck/> Service-aware referral</span><span><CloudOff/> Stores safely offline</span><span><UsersRound/> Staff coordination view</span></div><div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("facilities")}>Choose another facility</IconButton><IconButton Icon={ClipboardPlus} onClick={createReferral}>Create continuity pass</IconButton></div></div></section>}
-  {view === "followup" && <section className="followup-page"><div className="success-mark"><BadgeCheck/></div><p className="kicker">CARE JOURNEY SAVED</p><h1>Your next step is clear.</h1><p>We have created—or safely queued—your prototype referral and follow-up plan.</p><div className="timeline"><div><span>NOW</span><section><b>Referral continuity pass</b><p>Care context is ready for the receiving public facility.</p></section></div><div><span>TOMORROW</span><section><b>Follow-up reminder</b><p>Confirm whether the facility was reached and next care started.</p></section></div><div><span>STAFF</span><section><b>Demand signal updates</b><p>Non-identifying referral demand improves coordination visibility.</p></section></div></div><div className="flow-actions"><IconButton Icon={UsersRound} className="ghost" onClick={openDashboard}>View staff coordination</IconButton><IconButton Icon={Sparkles} onClick={() => { setView("intake"); setMessage(""); setAssessment(null); setSelected(null); }}>Start another journey</IconButton></div></section>}
-  {view === "dashboard" && <LiveStaffDashboard onBack={() => setView("intake")}/>}
-  </main></div>;
+  const [language, setLanguage] = useState<"en" | "ta">("en");
+  const [view, setView] = useState<View>("intake");
+  const [message, setMessage] = useState("");
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [selected, setSelected] = useState<Facility | null>(null);
+  const [patientLabel, setPatientLabel] = useState("Demo patient");
+  const [notice, setNotice] = useState("");
+  const [online, setOnline] = useState(navigator.onLine);
+  const t = useMemo(
+    () =>
+      language === "ta"
+        ? {
+            home: "முகப்பு",
+            assistant: "உதவி முறை",
+            title: "சரியான பராமரிப்பு. சரியான நேரத்தில்.",
+            intro:
+              "நாங்கள் உங்கள் தேவையைப் புரிந்து கொண்டு அருகிலுள்ள சரியான பொது சுகாதார சேவைக்குச் செலுத்துகிறோம்.",
+            prompt: "என்ன உதவி தேவை?",
+            next: "பாதுகாப்பாக தொடரவும்",
+            staff: "பணியாளர் பார்வை",
+          }
+        : {
+            home: "Care Compass",
+            assistant: "ASHA-assisted mode",
+            title: "Right care. Right pathway.",
+            intro:
+              "Tell us what you need. We connect you to an appropriate public health service—clearly and safely.",
+            prompt: "What do you need help with?",
+            next: "Continue safely",
+            staff: "Staff view",
+          },
+    [language],
+  );
+  const step =
+    view === "intake"
+      ? 1
+      : view === "assessment"
+        ? 2
+        : view === "facilities"
+          ? 3
+          : view === "referral"
+            ? 4
+            : 5;
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    addEventListener("online", on);
+    addEventListener("offline", off);
+    return () => {
+      removeEventListener("online", on);
+      removeEventListener("offline", off);
+    };
+  }, []);
+  useEffect(() => {
+    if (!online) return;
+    const queued = JSON.parse(localStorage.getItem(queueKey) || "[]");
+    if (!queued.length) return;
+    Promise.all(
+      queued.map((item: unknown) =>
+        request("/api/referrals", {
+          method: "POST",
+          body: JSON.stringify(item),
+        }),
+      ),
+    )
+      .then(() => {
+        localStorage.removeItem(queueKey);
+        setNotice(
+          "Offline referral synced. Your continuity record is up to date.",
+        );
+      })
+      .catch(() => undefined);
+  }, [online]);
+  async function triage() {
+    if (!message.trim())
+      return setNotice("Please describe the health need first.");
+    const local = assessNeed(message);
+    setAssessment(local);
+    setView("assessment");
+    try {
+      const result = await request("/api/triage", {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      });
+      setAssessment(result.assessment);
+    } catch {
+      setNotice(
+        "Offline-safe assessment is active. You can continue without internet.",
+      );
+    }
+  }
+  async function findFacilities() {
+    if (!assessment) return;
+    setFacilities(rankFacilities(localFacilities, assessment.service));
+    setView("facilities");
+    try {
+      const result = await request(
+        `/api/facilities?service=${assessment.service}`,
+      );
+      setFacilities(result.facilities);
+    } catch {
+      setNotice(
+        "Showing cached prototype facility data. Please verify before travel.",
+      );
+    }
+  }
+  async function createReferral() {
+    if (!selected || !assessment) return;
+    const body = {
+      patientLabel,
+      sourceFacility: "ASHA-assisted intake",
+      destinationFacility: selected.name,
+      service: assessment.service,
+      urgency: assessment.urgency,
+      nextAction: assessment.nextAction,
+      careNeed: assessment.symptoms.join(", "),
+    };
+    try {
+      const result = await request("/api/referrals", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      setNotice(
+        `Referral ${result.referral.demoId} created. Follow-up is scheduled for tomorrow.`,
+      );
+    } catch {
+      queueReferral(body);
+      setNotice(
+        "No signal? Referral has been safely saved on this device and will sync later.",
+      );
+    }
+    setView("followup");
+  }
+  function openDashboard() {
+    setView("dashboard");
+  }
+  function startVoice() {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Speech)
+      return setNotice(
+        "Voice input is unavailable in this browser. Please type your need.",
+      );
+    const recognition = new Speech();
+    recognition.lang = language === "ta" ? "ta-IN" : "en-IN";
+    recognition.onresult = (event: any) =>
+      setMessage(event.results[0][0].transcript);
+    recognition.start();
+  }
+  function emergency() {
+    setMessage("I need emergency help: chest pain");
+    setAssessment(assessNeed("I need emergency help: chest pain"));
+    setView("assessment");
+  }
+  return (
+    <div className="app-shell">
+      <aside>
+        <div className="brand">
+          <div className="brand-mark">
+            <HeartPulse />
+          </div>
+          <div>
+            <b>RuralCare</b>
+            <span>CONNECT</span>
+          </div>
+        </div>
+        <nav>
+          <button
+            className={view !== "dashboard" ? "active" : ""}
+            onClick={() => setView("intake")}
+          >
+            <Sparkles /> {t.home}
+          </button>
+          <button onClick={openDashboard}>
+            <UsersRound /> {t.staff}
+          </button>
+        </nav>
+        <div className="aside-card">
+          <div className="signal">
+            <Wifi size={16} /> Offline-first ready
+          </div>
+          <p>Saved care journeys continue even when the signal does not.</p>
+          <span>Synthetic SIH prototype</span>
+        </div>
+        <div className="aside-bottom">
+          <ShieldCheck size={18} />
+          <p>
+            <b>Safety bounded</b>
+            <br />
+            Not a diagnosis tool
+          </p>
+        </div>
+      </aside>
+      <main>
+        <header className="topbar">
+          <div className="mobile-brand">
+            <HeartPulse />
+            <b>RuralCare</b>
+          </div>
+          <div className="mode-pill">
+            <UsersRound size={15} />
+            {t.assistant}
+          </div>
+          <div className="top-actions">
+            <button
+              className="language"
+              onClick={() => setLanguage(language === "en" ? "ta" : "en")}
+            >
+              <Languages size={17} />
+              {language === "en" ? "தமிழ்" : "English"}
+            </button>
+            <button
+              className={online ? "connection online" : "connection offline"}
+            >
+              {online ? <Wifi size={16} /> : <CloudOff size={16} />}
+              {online ? "Connected" : "Offline"}
+            </button>
+          </div>
+        </header>
+        <div className="prototype-banner">
+          <BadgeCheck size={17} />
+          <span>Public-health navigation prototype</span>
+          <i>•</i>
+          <span>Synthetic demo data</span>
+          <i>•</i>
+          <span>Always verify availability before travel</span>
+        </div>
+        {view !== "dashboard" && (
+          <div className="journey">
+            <span>YOUR CARE JOURNEY</span>
+            {["Share", "Understand", "Match", "Refer", "Follow up"].map(
+              (name, i) => (
+                <div
+                  className={
+                    i + 1 <= step ? "journey-step done" : "journey-step"
+                  }
+                  key={name}
+                >
+                  <b>{i + 1}</b>
+                  <small>{name}</small>
+                </div>
+              ),
+            )}
+          </div>
+        )}
+        {notice && (
+          <div className="toast">
+            <BadgeCheck size={18} />
+            <span>{notice}</span>
+            <button onClick={() => setNotice("")}>×</button>
+          </div>
+        )}
+        {view === "intake" && (
+          <section className="home-grid">
+            <div className="welcome-panel">
+              <p className="kicker">CARE COMPASS · RURAL TAMIL NADU</p>
+              <h1>{t.title}</h1>
+              <p className="lead">{t.intro}</p>
+              <div className="input-panel">
+                <label>
+                  {t.prompt}
+                  <span>Local language welcome</span>
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={
+                    language === "ta"
+                      ? "உதாரணம்: குழந்தைக்கு இரண்டு நாட்களாக காய்ச்சல் உள்ளது"
+                      : "Example: My child has fever and cough for two days"
+                  }
+                />
+                <div className="input-actions">
+                  <IconButton Icon={Mic} className="ghost" onClick={startVoice}>
+                    Speak instead
+                  </IconButton>
+                  <IconButton Icon={ArrowRight} onClick={triage}>
+                    {t.next}
+                  </IconButton>
+                </div>
+              </div>
+              <div className="safety-strip">
+                <ShieldCheck />
+                <p>
+                  <b>Clear, not clinical.</b> We help you reach public care; we
+                  do not diagnose or prescribe.
+                </p>
+              </div>
+            </div>
+            <div className="right-rail">
+              <div className="quick-panel">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">GUIDED START</span>
+                    <h2>Common needs</h2>
+                  </div>
+                  <Sparkles className="accent" />
+                </div>
+                {scenarios.map(({ label, tamil, message: scenario, Icon }) => (
+                  <button
+                    className="scenario"
+                    key={label}
+                    onClick={() => setMessage(scenario)}
+                  >
+                    <span className="scenario-icon">
+                      <Icon size={20} />
+                    </span>
+                    <span>
+                      <b>{label}</b>
+                      <small>{tamil}</small>
+                    </span>
+                    <ArrowRight size={17} />
+                  </button>
+                ))}
+              </div>
+              <button className="emergency-button" onClick={emergency}>
+                <AlertTriangle />
+                <span>
+                  <b>Emergency? Act now</b>
+                  <small>Immediate human-care guidance</small>
+                </span>
+                <ArrowRight />
+              </button>
+              <div className="signal-card">
+                <MapPin />
+                <div>
+                  <b>District demo readiness</b>
+                  <span>4 public facilities · 7 care services</span>
+                </div>
+                <BadgeCheck />
+              </div>
+            </div>
+          </section>
+        )}
+        {view === "assessment" && assessment && (
+          <section className="flow-card assessment-layout">
+            <button className="back" onClick={() => setView("intake")}>
+              <ChevronLeft /> Back to request
+            </button>
+            <div className="flow-title">
+              <p className="kicker">WE LISTENED. PLEASE CONFIRM.</p>
+              <h1>
+                {assessment.urgency === "EMERGENCY"
+                  ? "Act immediately"
+                  : "Your care pathway"}
+              </h1>
+              <p>{assessment.explanation}</p>
+            </div>
+            <div className={`urgency-card ${assessment.urgency.toLowerCase()}`}>
+              <div>
+                {assessment.urgency === "EMERGENCY" ? (
+                  <AlertTriangle />
+                ) : (
+                  <ShieldCheck />
+                )}
+              </div>
+              <section>
+                <span>SAFETY GUIDANCE</span>
+                <h2>{assessment.urgency}</h2>
+                <p>{assessment.nextAction}</p>
+              </section>
+            </div>
+            <div className="understood">
+              <div>
+                <span>Suggested public service</span>
+                <b>{assessment.service.replaceAll("_", " ")}</b>
+              </div>
+              <div>
+                <span>Language</span>
+                <b>
+                  {assessment.language === "ta" ? "Tamil" : assessment.language}
+                </b>
+              </div>
+              <div>
+                <span>Need signals</span>
+                <b>{assessment.symptoms.join(", ")}</b>
+              </div>
+            </div>
+            {assessment.urgency === "EMERGENCY" ? (
+              <div className="emergency-actions">
+                <IconButton
+                  Icon={PhoneCall}
+                  onClick={() =>
+                    setNotice("Demo emergency SMS alert prepared.")
+                  }
+                >
+                  Send demo emergency alert
+                </IconButton>
+                <p>
+                  This prototype deliberately does not delay emergency care with
+                  chat or matching.
+                </p>
+              </div>
+            ) : (
+              <div className="flow-actions">
+                <IconButton
+                  Icon={ChevronLeft}
+                  className="ghost"
+                  onClick={() => setView("intake")}
+                >
+                  Edit request
+                </IconButton>
+                <IconButton Icon={Navigation} onClick={findFacilities}>
+                  Find suitable public care
+                </IconButton>
+              </div>
+            )}
+          </section>
+        )}
+        {view === "facilities" && assessment && (
+          <section className="facilities-page">
+            <div className="section-heading">
+              <div>
+                <p className="kicker">CARE MATCHING · NOT JUST NEAREST</p>
+                <h1>Public services ready for your need</h1>
+                <p>
+                  We prioritize required service, demo availability, and travel
+                  distance.
+                </p>
+              </div>
+              <div className="matching-chip">
+                <BadgeCheck /> Safety-checked pathway
+              </div>
+            </div>
+            <div className="facility-list">
+              {facilities.map((facility, index) => (
+                <article className="facility-card" key={facility.id}>
+                  <div className="rank">0{index + 1}</div>
+                  <div className="facility-main">
+                    <div className="facility-top">
+                      <span className="level-tag">
+                        {facility.type.replaceAll("_", " ")}
+                      </span>
+                      <span className="live-dot">● Available in demo</span>
+                    </div>
+                    <h2>{facility.name}</h2>
+                    <p>
+                      <MapPin size={16} />
+                      {facility.address} · <b>{facility.distanceKm} km away</b>
+                    </p>
+                    <div className="service-tags">
+                      {facility.services.slice(0, 3).map((service) => (
+                        <span key={service}>
+                          {service.replaceAll("_", " ")}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="facility-side">
+                    <p>
+                      <b>{facility.hours}</b>
+                      <small>Demo service hours</small>
+                    </p>
+                    <IconButton
+                      Icon={ArrowRight}
+                      onClick={() => {
+                        setSelected(facility);
+                        setView("referral");
+                      }}
+                    >
+                      Choose pathway
+                    </IconButton>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <button
+              className="back text-button"
+              onClick={() => setView("assessment")}
+            >
+              <ChevronLeft /> Review assessment
+            </button>
+          </section>
+        )}
+        {view === "referral" && selected && assessment && (
+          <section className="referral-page">
+            <div className="referral-card">
+              <div className="referral-header">
+                <div className="brand-mark">
+                  <ClipboardPlus />
+                </div>
+                <div>
+                  <span>RURALCARE CONNECT</span>
+                  <h1>Continuity pass</h1>
+                </div>
+                <BadgeCheck />
+              </div>
+              <p className="muted">
+                A simple hand-off so the next public facility understands the
+                care need without making the patient start over.
+              </p>
+              <label>
+                Patient label <small>Demo only; no real personal data</small>
+                <input
+                  value={patientLabel}
+                  onChange={(e) => setPatientLabel(e.target.value)}
+                  maxLength={40}
+                />
+              </label>
+              <div className="pass-row">
+                <span>CARE NEED</span>
+                <b>{assessment.service.replaceAll("_", " ")}</b>
+              </div>
+              <div className="pass-row">
+                <span>ROUTED TO</span>
+                <b>{selected.name}</b>
+              </div>
+              <div className="pass-row">
+                <span>NEXT ACTION</span>
+                <b>{assessment.nextAction}</b>
+              </div>
+              <div className="referral-foot">
+                <ShieldCheck />
+                <span>Structured, shareable context · Prototype only</span>
+              </div>
+            </div>
+            <div className="referral-copy">
+              <p className="kicker">REFERRAL CONTINUITY</p>
+              <h1>One care story, carried forward.</h1>
+              <p>
+                The novelty is not merely AI triage. It is a safety-bounded
+                hand-off from citizen need to a suitable public service, with a
+                follow-up loop.
+              </p>
+              <div className="mini-points">
+                <span>
+                  <BadgeCheck /> Service-aware referral
+                </span>
+                <span>
+                  <CloudOff /> Stores safely offline
+                </span>
+                <span>
+                  <UsersRound /> Staff coordination view
+                </span>
+              </div>
+              <div className="flow-actions">
+                <IconButton
+                  Icon={ChevronLeft}
+                  className="ghost"
+                  onClick={() => setView("facilities")}
+                >
+                  Choose another facility
+                </IconButton>
+                <IconButton Icon={ClipboardPlus} onClick={createReferral}>
+                  Create continuity pass
+                </IconButton>
+              </div>
+            </div>
+          </section>
+        )}
+        {view === "followup" && (
+          <section className="followup-page">
+            <div className="success-mark">
+              <BadgeCheck />
+            </div>
+            <p className="kicker">CARE JOURNEY SAVED</p>
+            <h1>Your next step is clear.</h1>
+            <p>
+              We have created—or safely queued—your prototype referral and
+              follow-up plan.
+            </p>
+            <div className="timeline">
+              <div>
+                <span>NOW</span>
+                <section>
+                  <b>Referral continuity pass</b>
+                  <p>
+                    Care context is ready for the receiving public facility.
+                  </p>
+                </section>
+              </div>
+              <div>
+                <span>TOMORROW</span>
+                <section>
+                  <b>Follow-up reminder</b>
+                  <p>
+                    Confirm whether the facility was reached and next care
+                    started.
+                  </p>
+                </section>
+              </div>
+              <div>
+                <span>STAFF</span>
+                <section>
+                  <b>Demand signal updates</b>
+                  <p>
+                    Non-identifying referral demand improves coordination
+                    visibility.
+                  </p>
+                </section>
+              </div>
+            </div>
+            <div className="flow-actions">
+              <IconButton
+                Icon={UsersRound}
+                className="ghost"
+                onClick={openDashboard}
+              >
+                View staff coordination
+              </IconButton>
+              <IconButton
+                Icon={Sparkles}
+                onClick={() => {
+                  setView("intake");
+                  setMessage("");
+                  setAssessment(null);
+                  setSelected(null);
+                }}
+              >
+                Start another journey
+              </IconButton>
+            </div>
+          </section>
+        )}
+        {view === "dashboard" && (
+          <LiveStaffDashboard onBack={() => setView("intake")} />
+        )}
+      </main>
+    </div>
+  );
 }
-type PathView = "input" | "understanding" | "urgency" | "service" | "comparison" | "recommendation" | "reroute" | "referral" | "followup" | "dashboard";
-type FacilityCandidate = Facility & { ranking?: number; reasons?: string[] };
-const unavailableDemoFacility: Facility = withDistance({ id: "gopalapuram-dispensary", name: "Gopalapuram Dispensary", type: "DISPENSARY", services: ["PRIMARY_CARE"], available: false, hours: "Unavailable in this synthetic demo shift", address: "No.1, 1st Street, Gopalapuram, Chennai 600086", phone: "Not published in supplied directory", latitude: 13.049097, longitude: 80.257621 });
+type PathView =
+  | "input"
+  | "understanding"
+  | "urgency"
+  | "service"
+  | "comparison"
+  | "recommendation"
+  | "reroute"
+  | "referral"
+  | "followup"
+  | "dashboard";
+type FacilityCandidate = Facility & {
+  ranking?: number;
+  reasons?: string[];
+  travelMinutes?: number;
+  serviceCapacity?: {
+    status: "AVAILABLE" | "LIMITED" | "UNAVAILABLE";
+    estimatedWaitMinutes: number;
+    availableBeds: number;
+    note: string;
+  };
+  rerouteReason?: string | null;
+};
+const unavailableDemoFacility: Facility = withDistance({
+  id: "gopalapuram-dispensary",
+  name: "Gopalapuram Dispensary",
+  type: "DISPENSARY",
+  services: ["PRIMARY_CARE"],
+  available: false,
+  hours: "Unavailable in this synthetic demo shift",
+  address: "No.1, 1st Street, Gopalapuram, Chennai 600086",
+  phone: "Not published in supplied directory",
+  latitude: 13.049097,
+  longitude: 80.257621,
+});
 function App() {
-  const [view, setView] = useState<PathView>("input"); const [language, setLanguage] = useState<"en" | "ta">("en"); const [message, setMessage] = useState(""); const [assessment, setAssessment] = useState<Assessment | null>(null); const [candidates, setCandidates] = useState<FacilityCandidate[]>([]); const [recommended, setRecommended] = useState<FacilityCandidate | null>(null); const [selected, setSelected] = useState<FacilityCandidate | null>(null); const [patientLabel, setPatientLabel] = useState("Demo patient"); const [notice, setNotice] = useState(""); const [online, setOnline] = useState(navigator.onLine);
-  const labels = language === "ta" ? { prompt: "என்ன உதவி தேவை?", next: "தொடரவும்" } : { prompt: "What healthcare help do you need?", next: "Continue" };
-  const stageNames = ["Need", "Understand", "Urgency", "Service", "Compare", "Explain", "Reroute", "Refer", "Follow up"];
-  const stageIndex: Record<PathView, number> = { input: 1, understanding: 2, urgency: 3, service: 4, comparison: 5, recommendation: 6, reroute: 7, referral: 8, followup: 9, dashboard: 0 };
-  useEffect(() => { const on = () => setOnline(true); const off = () => setOnline(false); addEventListener("online", on); addEventListener("offline", off); return () => { removeEventListener("online", on); removeEventListener("offline", off); }; }, []);
-  useEffect(() => { if (!online) return; const queued = JSON.parse(localStorage.getItem(queueKey) || "[]"); if (!queued.length) return; Promise.all(queued.map((item: unknown) => request("/api/referrals", { method: "POST", body: JSON.stringify(item) }))).then(() => { localStorage.removeItem(queueKey); setNotice("Queued continuity pass synced to Staff View."); }).catch(() => undefined); }, [online]);
-  async function start() { if (!message.trim()) return setNotice("Please describe the healthcare need first."); const fallback = assessNeed(message); setAssessment(fallback); setView("understanding"); try { const result = await request("/api/triage", { method: "POST", body: JSON.stringify({ message }) }); setAssessment(result.assessment); } catch { setNotice("Offline-safe structured extraction is active."); } }
-  async function loadComparison() { if (!assessment) return; const fallback = [...localFacilities, unavailableDemoFacility].filter((item) => item.services.includes(assessment.service)).map((item) => ({ ...item, reasons: [`Provides ${assessment.service.replaceAll("_", " ")}`, `${item.type} level of public care`, `${item.distanceKm} km away`, item.available ? "Available in the current synthetic shift" : "Unavailable in the current synthetic shift" ] })); setCandidates(fallback); setRecommended(fallback.filter((item) => item.available).sort((a, b) => a.distanceKm - b.distanceKm)[0] || null); setView("comparison"); try { const result = await request(`/api/facilities?service=${assessment.service}`); setCandidates(result.candidates); setRecommended(result.candidates.find((item: FacilityCandidate) => item.id === result.recommendedId) || result.facilities[0] || null); } catch { setNotice("Showing cached synthetic facility comparison."); } }
-  async function createReferral() { if (!assessment || !selected) return; const body = { patientLabel, sourceFacility: "ASHA-assisted pathway", destinationFacility: selected.name, service: assessment.service, urgency: assessment.urgency, nextAction: assessment.nextAction, careNeed: assessment.symptoms.join(", ") }; try { const result = await request("/api/referrals", { method: "POST", body: JSON.stringify(body) }); setNotice(`Continuity pass ${result.referral.demoId} created for the selected public-care pathway.`); } catch { queueReferral(body); setNotice("Offline: continuity pass safely queued on this device."); } setView("followup"); }
-  function voice() { const Speech = window.SpeechRecognition || window.webkitSpeechRecognition; if (!Speech) return setNotice("Voice input is unavailable in this browser. Please type the need."); const recognition = new Speech(); recognition.lang = language === "ta" ? "ta-IN" : "en-IN"; recognition.onresult = (event: any) => setMessage(event.results[0][0].transcript); recognition.start(); }
-  const standardCard = (children: React.ReactNode) => <section className="flow-card pathway-card">{children}</section>;
-  return <div className="app-shell"><aside><div className="brand"><div className="brand-mark"><HeartPulse/></div><div><b>RuralCare</b><span>CONNECT</span></div></div><nav><button className={view !== "dashboard" ? "active" : ""} onClick={() => setView("input")}><Sparkles/> Care pathway</button><button onClick={() => setView("dashboard")}><UsersRound/> Staff view</button></nav><div className="aside-card"><div className="signal"><Wifi size={16}/> Offline-first ready</div><p>Need → service → available public care → continuity.</p><span>Synthetic SIH prototype</span></div><div className="aside-bottom"><ShieldCheck size={18}/><p><b>Safety bounded</b><br/>Not a diagnosis tool</p></div></aside><main><header className="topbar"><div className="mobile-brand"><HeartPulse/><b>RuralCare</b></div><div className="mode-pill"><Route size={15}/> Need-to-care pathway</div><div className="top-actions"><button className="language" onClick={() => setLanguage(language === "en" ? "ta" : "en")}><Languages size={17}/>{language === "en" ? "தமிழ்" : "English"}</button><button className={online ? "connection online" : "connection offline"}>{online ? <Wifi size={16}/> : <CloudOff size={16}/>}{online ? "Connected" : "Offline"}</button></div></header><div className="prototype-banner"><BadgeCheck size={17}/><span>Need-to-service translation</span><i>•</i><span>Synthetic public-facility data</span><i>•</i><span>Verify availability before travel</span></div>{view !== "dashboard" && <div className="pathway-tracker">{stageNames.map((name, index) => <div className={index + 1 <= stageIndex[view] ? "pathway-step done" : "pathway-step"} key={name}><b>{index + 1}</b><small>{name}</small></div>)}</div>}{notice && <div className="toast"><BadgeCheck size={18}/><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div>}
-  {view === "input" && <section className="home-grid"><div className="welcome-panel"><p className="kicker">CARE COMPASS · RURAL TAMIL NADU</p><h1>From a health need to the right public care.</h1><p className="lead">RuralCare does not simply find the nearest hospital. It translates a need, identifies the required service, checks availability, and explains the care pathway.</p><div className="input-panel"><label>{labels.prompt}<span>Tamil, English, or mixed language</span></label><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={language === "ta" ? "உதாரணம்: கர்ப்ப கால பரிசோதனை தேவை" : "Example: I am pregnant and need a check-up"}/><div className="input-actions"><IconButton Icon={Mic} className="ghost" onClick={voice}>Speak instead</IconButton><IconButton Icon={ArrowRight} onClick={start}>{labels.next}</IconButton></div></div><div className="safety-strip"><ShieldCheck/><p><b>Safe pathway support.</b> We do not diagnose or prescribe.</p></div></div><div className="right-rail"><div className="quick-panel"><div className="panel-head"><div><span className="eyebrow">DEMO STARTS</span><h2>Try a pathway</h2></div><SearchCheck className="accent"/></div>{scenarios.map(({ label, tamil, message: scenario, Icon }) => <button className="scenario" key={label} onClick={() => setMessage(scenario)}><span className="scenario-icon"><Icon size={20}/></span><span><b>{label}</b><small>{tamil}</small></span><ArrowRight size={17}/></button>)}</div><button className="emergency-button" onClick={() => { setMessage("I need emergency help: chest pain"); setAssessment(assessNeed("I need emergency help: chest pain")); setView("urgency"); }}><AlertTriangle/><span><b>Emergency? Act now</b><small>Immediate human-care guidance</small></span><ArrowRight/></button></div></section>}
-  {view === "understanding" && assessment && standardCard(<><button className="back" onClick={() => setView("input")}><ChevronLeft/> Edit need</button><div className="flow-title"><p className="kicker">STEP 2 · STRUCTURED UNDERSTANDING</p><h1>Here is what we understood.</h1><p>Confirm the structured information before the system suggests any care pathway.</p></div><div className="path-summary"><div><span>Need signals</span><b>{assessment.symptoms.join(", ")}</b></div><div><span>Duration</span><b>{assessment.duration}</b></div><div><span>Language</span><b>{assessment.language === "ta" ? "Tamil" : assessment.language}</b></div></div><div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("input")}>Change input</IconButton><IconButton Icon={CheckCircle2} onClick={() => setView("urgency")}>Confirm understanding</IconButton></div></>)}
-  {view === "urgency" && assessment && standardCard(<><button className="back" onClick={() => setView("understanding")}><ChevronLeft/> Understanding</button><div className="flow-title"><p className="kicker">STEP 3 · SAFETY-BOUNDED URGENCY</p><h1>{assessment.urgency === "EMERGENCY" ? "Act immediately" : "Your safety level"}</h1><p>Urgency is a conservative routing safeguard, not a diagnosis.</p></div><div className={`urgency-card ${assessment.urgency.toLowerCase()}`}><div>{assessment.urgency === "EMERGENCY" ? <AlertTriangle/> : <ShieldCheck/>}</div><section><span>URGENCY CLASSIFICATION</span><h2>{assessment.urgency}</h2><p>{assessment.nextAction}</p></section></div>{assessment.urgency === "EMERGENCY" ? <div className="emergency-actions"><IconButton Icon={PhoneCall} onClick={() => setNotice("Demo emergency SMS alert prepared.")}>Send demo emergency alert</IconButton><p>Emergency cases do not continue into normal facility matching.</p></div> : <div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("understanding")}>Review understanding</IconButton><IconButton Icon={ArrowRight} onClick={() => setView("service")}>See required service</IconButton></div>}</>)}
-  {view === "service" && assessment && standardCard(<><button className="back" onClick={() => setView("urgency")}><ChevronLeft/> Urgency</button><div className="flow-title"><p className="kicker">STEP 4 · NEED-TO-SERVICE TRANSLATION</p><h1>The required public service is clear.</h1><p>This is the core product decision: your words are converted into a service-level care need.</p></div><div className="service-decision"><SearchCheck/><div><span>REQUIRED PUBLIC SERVICE</span><h2>{assessment.service.replaceAll("_", " ")}</h2><p>Based on the confirmed need signals and safety classification—not keyword search alone.</p></div></div><div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("urgency")}>Back</IconButton><IconButton Icon={GitCompareArrows} onClick={loadComparison}>Compare public facilities</IconButton></div></>)}
-  {view === "comparison" && assessment && <section className="facilities-page"><div className="section-heading"><div><p className="kicker">STEP 5 · DISTANCE + CAPABILITY + AVAILABILITY</p><h1>Compare suitable public facilities.</h1><p>Every option below supports the required service. Availability determines whether it can be recommended today.</p></div><div className="matching-chip"><GitCompareArrows/> Service-aware comparison</div></div><div className="facility-list">{candidates.map((facility, index) => <article className={`facility-card ${facility.available ? "" : "unavailable-card"}`} key={facility.id}><div className="rank">{facility.available ? `0${facility.ranking || index + 1}` : "—"}</div><div className="facility-main"><div className="facility-top"><span className="level-tag">{facility.type.replaceAll("_", " ")}</span><span className={facility.available ? "live-dot" : "unavailable-dot"}>{facility.available ? "● Available in demo" : "● Unavailable this shift"}</span></div><h2>{facility.name}</h2><p><MapPin size={16}/>{facility.distanceKm} km · {facility.address}</p><div className="reason-list">{facility.reasons?.slice(0, 3).map((reason) => <span key={reason}><CheckCircle2 size={14}/>{reason}</span>)}</div></div><div className="facility-side"><p><b>{facility.hours}</b><small>Demo service status</small></p>{facility.available ? <IconButton Icon={ArrowRight} onClick={() => { setSelected(facility); setView("recommendation"); }}>Explain recommendation</IconButton> : <IconButton Icon={Route} onClick={() => { setSelected(facility); setView("reroute"); }}>See reroute</IconButton>}</div></article>)}</div><button className="back text-button" onClick={() => setView("service")}><ChevronLeft/> Required service</button></section>}
-  {view === "recommendation" && assessment && selected && standardCard(<><button className="back" onClick={() => setView("comparison")}><ChevronLeft/> Facility comparison</button><div className="flow-title"><p className="kicker">STEP 6 · EXPLAINABLE RECOMMENDATION</p><h1>Why {selected.name} is suitable.</h1><p>We make the routing reason visible so the user and ASHA worker can trust the public-care pathway.</p></div><div className="recommendation-panel"><BadgeCheck/><div><h2>{selected.name}</h2><p><b>Service fit:</b> Provides {assessment.service.replaceAll("_", " ")}.</p><p><b>Care capability:</b> {selected.type.replaceAll("_", " ")} level is appropriate for this need.</p><p><b>Current readiness:</b> Available in the synthetic demo shift, {selected.distanceKm} km away.</p></div></div><div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("comparison")}>Compare again</IconButton><IconButton Icon={ClipboardPlus} onClick={() => setView("referral")}>Create continuity pass</IconButton></div></>)}
-  {view === "reroute" && assessment && selected && standardCard(<><button className="back" onClick={() => setView("comparison")}><ChevronLeft/> Facility comparison</button><div className="flow-title"><p className="kicker">STEP 7 · DYNAMIC REROUTING</p><h1>This facility cannot serve the need right now.</h1><p>{selected.name} provides the required service, but is unavailable in this synthetic shift. RuralCare reroutes instead of sending the citizen on an avoidable trip.</p></div><div className="reroute-alert"><CircleAlert/><div><b>Unavailable: {selected.name}</b><span>Reason: service availability is currently marked unavailable.</span></div></div>{recommended && <div className="recommendation-panel"><Route/><div><span>BEST AVAILABLE ALTERNATIVE</span><h2>{recommended.name}</h2><p>{recommended.distanceKm} km · {recommended.type.replaceAll("_", " ")} · {assessment.service.replaceAll("_", " ")} available.</p></div><IconButton Icon={ArrowRight} onClick={() => { setSelected(recommended); setView("recommendation"); }}>Use this pathway</IconButton></div>}<button className="back text-button" onClick={() => setView("comparison")}><ChevronLeft/> Compare all options</button></>)}
-  {view === "referral" && selected && assessment && <section className="referral-page"><div className="referral-card"><div className="referral-header"><div className="brand-mark"><ClipboardPlus/></div><div><span>RURALCARE CONNECT</span><h1>Continuity pass</h1></div><BadgeCheck/></div><p className="muted">This is the final hand-off after the correct care pathway has been selected.</p><label>Patient label <small>Demo only; no real personal data</small><input value={patientLabel} onChange={(e) => setPatientLabel(e.target.value)} maxLength={40}/></label><div className="pass-row"><span>CONFIRMED SERVICE</span><b>{assessment.service.replaceAll("_", " ")}</b></div><div className="pass-row"><span>FINAL PUBLIC FACILITY</span><b>{selected.name}</b></div><div className="pass-row"><span>NEXT ACTION</span><b>{assessment.nextAction}</b></div><div className="referral-foot"><ShieldCheck/><span>Continuity after correct routing · Prototype only</span></div></div><div className="referral-copy"><p className="kicker">STEP 8 · REFERRAL CONTINUITY</p><h1>Carry the correct pathway forward.</h1><p>The referral is not the beginning of RuralCare’s value. It preserves the need, urgency, service, and selected public facility after safe, explainable routing.</p><div className="flow-actions"><IconButton Icon={ChevronLeft} className="ghost" onClick={() => setView("recommendation")}>Review recommendation</IconButton><IconButton Icon={ClipboardPlus} onClick={createReferral}>Create continuity pass</IconButton></div></div></section>}
-  {view === "followup" && <section className="followup-page"><div className="success-mark"><BadgeCheck/></div><p className="kicker">STEP 9 · FOLLOW-UP</p><h1>The public-care pathway continues.</h1><p>Your continuity pass is created or safely queued. The Staff View can now coordinate the next hand-off.</p><div className="timeline"><div><span>NOW</span><section><b>Correct service and facility preserved</b><p>The chosen public-care pathway is ready for the receiving facility.</p></section></div><div><span>NEXT</span><section><b>Staff coordination</b><p>ASHA/PHC staff can accept, track arrival, and arrange follow-up.</p></section></div><div><span>FOLLOW-UP</span><section><b>Reminder and status</b><p>Confirm that care was reached and the next action is clear.</p></section></div></div><div className="flow-actions"><IconButton Icon={UsersRound} className="ghost" onClick={() => setView("dashboard")}>Open staff coordination</IconButton><IconButton Icon={Sparkles} onClick={() => { setView("input"); setMessage(""); setAssessment(null); setSelected(null); }}>Start another journey</IconButton></div></section>}
-  {view === "dashboard" && <LiveStaffDashboard onBack={() => setView("input")}/>}
-  </main></div>;
+  const [view, setView] = useState<PathView>("input");
+  const [language, setLanguage] = useState<"en" | "ta">("en");
+  const [message, setMessage] = useState("");
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [candidates, setCandidates] = useState<FacilityCandidate[]>([]);
+  const [recommended, setRecommended] = useState<FacilityCandidate | null>(
+    null,
+  );
+  const [selected, setSelected] = useState<FacilityCandidate | null>(null);
+  const [patientLabel, setPatientLabel] = useState("Demo patient");
+  const [notice, setNotice] = useState("");
+  const [online, setOnline] = useState(navigator.onLine);
+  const labels =
+    language === "ta"
+      ? { prompt: "என்ன உதவி தேவை?", next: "தொடரவும்" }
+      : { prompt: "What healthcare help do you need?", next: "Continue" };
+  const stageNames = [
+    "Need",
+    "Understand",
+    "Urgency",
+    "Service",
+    "Compare",
+    "Explain",
+    "Reroute",
+    "Refer",
+    "Follow up",
+  ];
+  const stageIndex: Record<PathView, number> = {
+    input: 1,
+    understanding: 2,
+    urgency: 3,
+    service: 4,
+    comparison: 5,
+    recommendation: 6,
+    reroute: 7,
+    referral: 8,
+    followup: 9,
+    dashboard: 0,
+  };
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    addEventListener("online", on);
+    addEventListener("offline", off);
+    return () => {
+      removeEventListener("online", on);
+      removeEventListener("offline", off);
+    };
+  }, []);
+  useEffect(() => {
+    if (!online) return;
+    const queued = JSON.parse(localStorage.getItem(queueKey) || "[]");
+    if (!queued.length) return;
+    Promise.all(
+      queued.map((item: unknown) =>
+        request("/api/referrals", {
+          method: "POST",
+          body: JSON.stringify(item),
+        }),
+      ),
+    )
+      .then(() => {
+        localStorage.removeItem(queueKey);
+        setNotice("Queued continuity pass synced to Staff View.");
+      })
+      .catch(() => undefined);
+  }, [online]);
+  async function start() {
+    if (!message.trim())
+      return setNotice("Please describe the healthcare need first.");
+    const fallback = assessNeed(message);
+    setAssessment(fallback);
+    setView("understanding");
+    try {
+      const result = await request("/api/triage", {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      });
+      setAssessment(result.assessment);
+    } catch {
+      setNotice("Offline-safe structured extraction is active.");
+    }
+  }
+  async function loadComparison() {
+    if (!assessment) return;
+    const fallback = [...localFacilities, unavailableDemoFacility]
+      .filter((item) => item.services.includes(assessment.service))
+      .map((item) => ({
+        ...item,
+        travelMinutes: Math.max(6, Math.round(item.distanceKm * 4.2)),
+        serviceCapacity: {
+          status: item.available
+            ? ("AVAILABLE" as const)
+            : ("UNAVAILABLE" as const),
+          estimatedWaitMinutes: item.available ? 30 : 0,
+          availableBeds: 0,
+          note: "Cached synthetic demo status",
+        },
+        rerouteReason: item.available
+          ? null
+          : "Required service unavailable in the cached synthetic shift.",
+        reasons: [
+          `Provides ${assessment.service.replaceAll("_", " ")}`,
+          `${item.type} level of public care`,
+          `${Math.max(6, Math.round(item.distanceKm * 4.2))} min demo travel estimate`,
+          item.available
+            ? "Available in the current synthetic shift"
+            : "Unavailable in the current synthetic shift",
+        ],
+      }));
+    setCandidates(fallback);
+    setRecommended(
+      fallback
+        .filter((item) => item.available)
+        .sort((a, b) => a.distanceKm - b.distanceKm)[0] || null,
+    );
+    setView("comparison");
+    try {
+      const result = await request(
+        `/api/facilities?service=${assessment.service}`,
+      );
+      setCandidates(result.candidates);
+      setRecommended(
+        result.candidates.find(
+          (item: FacilityCandidate) => item.id === result.recommendedId,
+        ) ||
+          result.facilities[0] ||
+          null,
+      );
+    } catch {
+      setNotice("Showing cached synthetic facility comparison.");
+    }
+  }
+  async function createReferral() {
+    if (!assessment || !selected) return;
+    const body = {
+      patientLabel,
+      sourceFacility: "ASHA-assisted pathway",
+      destinationFacility: selected.name,
+      service: assessment.service,
+      urgency: assessment.urgency,
+      nextAction: assessment.nextAction,
+      careNeed: assessment.symptoms.join(", "),
+    };
+    try {
+      const result = await request("/api/referrals", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      setNotice(
+        `Continuity pass ${result.referral.demoId} created for the selected public-care pathway.`,
+      );
+    } catch {
+      queueReferral(body);
+      setNotice("Offline: continuity pass safely queued on this device.");
+    }
+    setView("followup");
+  }
+  function voice() {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Speech)
+      return setNotice(
+        "Voice input is unavailable in this browser. Please type the need.",
+      );
+    const recognition = new Speech();
+    recognition.lang = language === "ta" ? "ta-IN" : "en-IN";
+    recognition.onresult = (event: any) =>
+      setMessage(event.results[0][0].transcript);
+    recognition.start();
+  }
+  const standardCard = (children: React.ReactNode) => (
+    <section className="flow-card pathway-card">{children}</section>
+  );
+  return (
+    <div className="app-shell">
+      <aside>
+        <div className="brand">
+          <div className="brand-mark">
+            <HeartPulse />
+          </div>
+          <div>
+            <b>RuralCare</b>
+            <span>CONNECT</span>
+          </div>
+        </div>
+        <nav>
+          <button
+            className={view !== "dashboard" ? "active" : ""}
+            onClick={() => setView("input")}
+          >
+            <Sparkles /> Care pathway
+          </button>
+          <button onClick={() => setView("dashboard")}>
+            <UsersRound /> Staff view
+          </button>
+        </nav>
+        <div className="aside-card">
+          <div className="signal">
+            <Wifi size={16} /> Offline-first ready
+          </div>
+          <p>Need → service → available public care → continuity.</p>
+          <span>Synthetic SIH prototype</span>
+        </div>
+        <div className="aside-bottom">
+          <ShieldCheck size={18} />
+          <p>
+            <b>Safety bounded</b>
+            <br />
+            Not a diagnosis tool
+          </p>
+        </div>
+      </aside>
+      <main>
+        <header className="topbar">
+          <div className="mobile-brand">
+            <HeartPulse />
+            <b>RuralCare</b>
+          </div>
+          <div className="mode-pill">
+            <Route size={15} /> Need-to-care pathway
+          </div>
+          <div className="top-actions">
+            <button
+              className="language"
+              onClick={() => setLanguage(language === "en" ? "ta" : "en")}
+            >
+              <Languages size={17} />
+              {language === "en" ? "தமிழ்" : "English"}
+            </button>
+            <button
+              className={online ? "connection online" : "connection offline"}
+            >
+              {online ? <Wifi size={16} /> : <CloudOff size={16} />}
+              {online ? "Connected" : "Offline"}
+            </button>
+          </div>
+        </header>
+        <div className="prototype-banner">
+          <BadgeCheck size={17} />
+          <span>Need-to-service translation</span>
+          <i>•</i>
+          <span>Synthetic public-facility data</span>
+          <i>•</i>
+          <span>Verify availability before travel</span>
+        </div>
+        {view !== "dashboard" && (
+          <div className="pathway-tracker">
+            {stageNames.map((name, index) => (
+              <div
+                className={
+                  index + 1 <= stageIndex[view]
+                    ? "pathway-step done"
+                    : "pathway-step"
+                }
+                key={name}
+              >
+                <b>{index + 1}</b>
+                <small>{name}</small>
+              </div>
+            ))}
+          </div>
+        )}
+        {notice && (
+          <div className="toast">
+            <BadgeCheck size={18} />
+            <span>{notice}</span>
+            <button onClick={() => setNotice("")}>×</button>
+          </div>
+        )}
+        {view === "input" && (
+          <section className="home-grid">
+            <div className="welcome-panel">
+              <p className="kicker">CARE COMPASS · RURAL TAMIL NADU</p>
+              <h1>From a health need to the right public care.</h1>
+              <p className="lead">
+                RuralCare does not simply find the nearest hospital. It
+                translates a need, identifies the required service, checks
+                availability, and explains the care pathway.
+              </p>
+              <div className="input-panel">
+                <label>
+                  {labels.prompt}
+                  <span>Tamil, English, or mixed language</span>
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={
+                    language === "ta"
+                      ? "உதாரணம்: கர்ப்ப கால பரிசோதனை தேவை"
+                      : "Example: I am pregnant and need a check-up"
+                  }
+                />
+                <div className="input-actions">
+                  <IconButton Icon={Mic} className="ghost" onClick={voice}>
+                    Speak instead
+                  </IconButton>
+                  <IconButton Icon={ArrowRight} onClick={start}>
+                    {labels.next}
+                  </IconButton>
+                </div>
+              </div>
+              <div className="safety-strip">
+                <ShieldCheck />
+                <p>
+                  <b>Safe pathway support.</b> We do not diagnose or prescribe.
+                </p>
+              </div>
+            </div>
+            <div className="right-rail">
+              <div className="quick-panel">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">DEMO STARTS</span>
+                    <h2>Try a pathway</h2>
+                  </div>
+                  <SearchCheck className="accent" />
+                </div>
+                {scenarios.map(({ label, tamil, message: scenario, Icon }) => (
+                  <button
+                    className="scenario"
+                    key={label}
+                    onClick={() => setMessage(scenario)}
+                  >
+                    <span className="scenario-icon">
+                      <Icon size={20} />
+                    </span>
+                    <span>
+                      <b>{label}</b>
+                      <small>{tamil}</small>
+                    </span>
+                    <ArrowRight size={17} />
+                  </button>
+                ))}
+              </div>
+              <button
+                className="emergency-button"
+                onClick={() => {
+                  setMessage("I need emergency help: chest pain");
+                  setAssessment(
+                    assessNeed("I need emergency help: chest pain"),
+                  );
+                  setView("urgency");
+                }}
+              >
+                <AlertTriangle />
+                <span>
+                  <b>Emergency? Act now</b>
+                  <small>Immediate human-care guidance</small>
+                </span>
+                <ArrowRight />
+              </button>
+            </div>
+          </section>
+        )}
+        {view === "understanding" &&
+          assessment &&
+          standardCard(
+            <>
+              <button className="back" onClick={() => setView("input")}>
+                <ChevronLeft /> Edit need
+              </button>
+              <div className="flow-title">
+                <p className="kicker">STEP 2 · STRUCTURED UNDERSTANDING</p>
+                <h1>Here is what we understood.</h1>
+                <p>
+                  Confirm the structured information before the system suggests
+                  any care pathway.
+                </p>
+              </div>
+              <div className="path-summary">
+                <div>
+                  <span>Need signals</span>
+                  <b>{assessment.symptoms.join(", ")}</b>
+                </div>
+                <div>
+                  <span>Duration</span>
+                  <b>{assessment.duration}</b>
+                </div>
+                <div>
+                  <span>Language</span>
+                  <b>
+                    {assessment.language === "ta"
+                      ? "Tamil"
+                      : assessment.language}
+                  </b>
+                </div>
+              </div>
+              <div className="flow-actions">
+                <IconButton
+                  Icon={ChevronLeft}
+                  className="ghost"
+                  onClick={() => setView("input")}
+                >
+                  Change input
+                </IconButton>
+                <IconButton
+                  Icon={CheckCircle2}
+                  onClick={() => setView("urgency")}
+                >
+                  Confirm understanding
+                </IconButton>
+              </div>
+            </>,
+          )}
+        {view === "urgency" &&
+          assessment &&
+          standardCard(
+            <>
+              <button className="back" onClick={() => setView("understanding")}>
+                <ChevronLeft /> Understanding
+              </button>
+              <div className="flow-title">
+                <p className="kicker">STEP 3 · SAFETY-BOUNDED URGENCY</p>
+                <h1>
+                  {assessment.urgency === "EMERGENCY"
+                    ? "Act immediately"
+                    : "Your safety level"}
+                </h1>
+                <p>
+                  Urgency is a conservative routing safeguard, not a diagnosis.
+                </p>
+              </div>
+              <div
+                className={`urgency-card ${assessment.urgency.toLowerCase()}`}
+              >
+                <div>
+                  {assessment.urgency === "EMERGENCY" ? (
+                    <AlertTriangle />
+                  ) : (
+                    <ShieldCheck />
+                  )}
+                </div>
+                <section>
+                  <span>URGENCY CLASSIFICATION</span>
+                  <h2>{assessment.urgency}</h2>
+                  <p>{assessment.nextAction}</p>
+                </section>
+              </div>
+              {assessment.urgency === "EMERGENCY" ? (
+                <div className="emergency-actions">
+                  <IconButton
+                    Icon={PhoneCall}
+                    onClick={() =>
+                      setNotice("Demo emergency SMS alert prepared.")
+                    }
+                  >
+                    Send demo emergency alert
+                  </IconButton>
+                  <p>
+                    Emergency cases do not continue into normal facility
+                    matching.
+                  </p>
+                </div>
+              ) : (
+                <div className="flow-actions">
+                  <IconButton
+                    Icon={ChevronLeft}
+                    className="ghost"
+                    onClick={() => setView("understanding")}
+                  >
+                    Review understanding
+                  </IconButton>
+                  <IconButton
+                    Icon={ArrowRight}
+                    onClick={() => setView("service")}
+                  >
+                    See required service
+                  </IconButton>
+                </div>
+              )}
+            </>,
+          )}
+        {view === "service" &&
+          assessment &&
+          standardCard(
+            <>
+              <button className="back" onClick={() => setView("urgency")}>
+                <ChevronLeft /> Urgency
+              </button>
+              <div className="flow-title">
+                <p className="kicker">STEP 4 · NEED-TO-SERVICE TRANSLATION</p>
+                <h1>The required public service is clear.</h1>
+                <p>
+                  This is the core product decision: your words are converted
+                  into a service-level care need.
+                </p>
+              </div>
+              <div className="service-decision">
+                <SearchCheck />
+                <div>
+                  <span>REQUIRED PUBLIC SERVICE</span>
+                  <h2>{assessment.service.replaceAll("_", " ")}</h2>
+                  <p>
+                    Based on the confirmed need signals and safety
+                    classification—not keyword search alone.
+                  </p>
+                </div>
+              </div>
+              <div className="flow-actions">
+                <IconButton
+                  Icon={ChevronLeft}
+                  className="ghost"
+                  onClick={() => setView("urgency")}
+                >
+                  Back
+                </IconButton>
+                <IconButton Icon={GitCompareArrows} onClick={loadComparison}>
+                  Compare public facilities
+                </IconButton>
+              </div>
+            </>,
+          )}
+        {view === "comparison" && assessment && (
+          <section className="facilities-page">
+            <div className="section-heading">
+              <div>
+                <p className="kicker">
+                  STEP 5 · DISTANCE + CAPABILITY + AVAILABILITY
+                </p>
+                <h1>Compare suitable public facilities.</h1>
+                <p>
+                  Every option below supports the required service. Availability
+                  determines whether it can be recommended today.
+                </p>
+              </div>
+              <div className="matching-chip">
+                <GitCompareArrows /> Service-aware comparison
+              </div>
+            </div>
+            <RouteMap
+              facilities={candidates}
+              selectedId={selected?.id || recommended?.id}
+              service={assessment.service}
+              onSelect={(facility) => setSelected(facility as FacilityCandidate)}
+            />
+            <div className="facility-list">
+              {candidates.map((facility, index) => (
+                <article
+                  className={`facility-card ${facility.available ? "" : "unavailable-card"}`}
+                  key={facility.id}
+                >
+                  <div className="rank">
+                    {facility.available
+                      ? `0${facility.ranking || index + 1}`
+                      : "—"}
+                  </div>
+                  <div className="facility-main">
+                  <div className="facility-top">
+                    <span className="level-tag">
+                      {facility.type.replaceAll("_", " ")}
+                    </span>
+                    <span className={`capacity-dot ${facility.serviceCapacity?.status?.toLowerCase() || (facility.available ? "available" : "unavailable")}`}>
+                      ● {facility.serviceCapacity?.status || (facility.available ? "AVAILABLE" : "UNAVAILABLE")} capacity
+                    </span>
+                    </div>
+                    <h2>{facility.name}</h2>
+                    <p>
+                      <MapPin size={16} />
+                      {facility.distanceKm} km · {facility.address}
+                    </p>
+                    <div className="reason-list">
+                    {facility.reasons?.slice(0, 4).map((reason) => (
+                        <span key={reason}>
+                          <CheckCircle2 size={14} />
+                          {reason}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="facility-side">
+                    <p>
+                      <b>{facility.travelMinutes || Math.round(facility.distanceKm * 4.2)} min route</b>
+                      <small>{facility.serviceCapacity?.estimatedWaitMinutes ?? 30} min wait · {facility.serviceCapacity?.availableBeds ?? 0} beds · synthetic</small>
+                    </p>
+                    {facility.serviceCapacity?.status !== "UNAVAILABLE" && facility.available ? (
+                      <IconButton
+                        Icon={ArrowRight}
+                        onClick={() => {
+                          setSelected(facility);
+                          setView("recommendation");
+                        }}
+                      >
+                        Explain recommendation
+                      </IconButton>
+                    ) : (
+                      <IconButton
+                        Icon={Route}
+                        onClick={() => {
+                          setSelected(facility);
+                          setView("reroute");
+                        }}
+                      >
+                        See reroute
+                      </IconButton>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <button
+              className="back text-button"
+              onClick={() => setView("service")}
+            >
+              <ChevronLeft /> Required service
+            </button>
+          </section>
+        )}
+        {view === "recommendation" &&
+          assessment &&
+          selected &&
+          standardCard(
+            <>
+              <button className="back" onClick={() => setView("comparison")}>
+                <ChevronLeft /> Facility comparison
+              </button>
+              <div className="flow-title">
+                <p className="kicker">STEP 6 · EXPLAINABLE RECOMMENDATION</p>
+                <h1>Why {selected.name} is suitable.</h1>
+                <p>
+                  We make the routing reason visible so the user and ASHA worker
+                  can trust the public-care pathway.
+                </p>
+              </div>
+              <div className="recommendation-panel">
+                <BadgeCheck />
+                <div>
+                  <h2>{selected.name}</h2>
+                  <p>
+                    <b>Service fit:</b> Provides{" "}
+                    {assessment.service.replaceAll("_", " ")}.
+                  </p>
+                  <p>
+                    <b>Care capability:</b> {selected.type.replaceAll("_", " ")}{" "}
+                    level is appropriate for this need.
+                  </p>
+                  <p>
+                    <b>Current readiness:</b> {selected.serviceCapacity?.status || "AVAILABLE"} capacity · {selected.travelMinutes || Math.round(selected.distanceKm * 4.2)} min demo travel · {selected.serviceCapacity?.estimatedWaitMinutes ?? 30} min wait · {selected.serviceCapacity?.availableBeds ?? 0} beds. Synthetic demo estimates.
+                  </p>
+                </div>
+              </div>
+              <div className="flow-actions">
+                <IconButton
+                  Icon={ChevronLeft}
+                  className="ghost"
+                  onClick={() => setView("comparison")}
+                >
+                  Compare again
+                </IconButton>
+                <IconButton
+                  Icon={ClipboardPlus}
+                  onClick={() => setView("referral")}
+                >
+                  Create continuity pass
+                </IconButton>
+              </div>
+            </>,
+          )}
+        {view === "reroute" &&
+          assessment &&
+          selected &&
+          standardCard(
+            <>
+              <button className="back" onClick={() => setView("comparison")}>
+                <ChevronLeft /> Facility comparison
+              </button>
+              <div className="flow-title">
+                <p className="kicker">STEP 7 · DYNAMIC REROUTING</p>
+                <h1>This facility cannot serve the need right now.</h1>
+                <p>
+                  {selected.name} provides the required service, but is
+                  unavailable in this synthetic shift. RuralCare reroutes
+                  instead of sending the citizen on an avoidable trip.
+                </p>
+              </div>
+              <div className="reroute-alert">
+                <CircleAlert />
+                <div>
+                  <b>Unavailable: {selected.name}</b>
+                  <span>
+                    Reason: {selected.rerouteReason || selected.serviceCapacity?.note || "required service is unavailable in this synthetic shift."}
+                  </span>
+                </div>
+              </div>
+              {recommended && (
+                <div className="recommendation-panel">
+                  <Route />
+                  <div>
+                    <span>BEST AVAILABLE ALTERNATIVE</span>
+                    <h2>{recommended.name}</h2>
+                    <p>
+                      {recommended.distanceKm} km ·{" "}
+                      {recommended.type.replaceAll("_", " ")} ·{" "}
+                      {assessment.service.replaceAll("_", " ")} available · {recommended.travelMinutes || Math.round(recommended.distanceKm * 4.2)} min demo route · {recommended.serviceCapacity?.estimatedWaitMinutes ?? 30} min wait.
+                    </p>
+                  </div>
+                  <IconButton
+                    Icon={ArrowRight}
+                    onClick={() => {
+                      setSelected(recommended);
+                      setView("recommendation");
+                    }}
+                  >
+                    Use this pathway
+                  </IconButton>
+                </div>
+              )}
+              <button
+                className="back text-button"
+                onClick={() => setView("comparison")}
+              >
+                <ChevronLeft /> Compare all options
+              </button>
+            </>,
+          )}
+        {view === "referral" && selected && assessment && (
+          <section className="referral-page">
+            <div className="referral-card">
+              <div className="referral-header">
+                <div className="brand-mark">
+                  <ClipboardPlus />
+                </div>
+                <div>
+                  <span>RURALCARE CONNECT</span>
+                  <h1>Continuity pass</h1>
+                </div>
+                <BadgeCheck />
+              </div>
+              <p className="muted">
+                This is the final hand-off after the correct care pathway has
+                been selected.
+              </p>
+              <label>
+                Patient label <small>Demo only; no real personal data</small>
+                <input
+                  value={patientLabel}
+                  onChange={(e) => setPatientLabel(e.target.value)}
+                  maxLength={40}
+                />
+              </label>
+              <div className="pass-row">
+                <span>CONFIRMED SERVICE</span>
+                <b>{assessment.service.replaceAll("_", " ")}</b>
+              </div>
+              <div className="pass-row">
+                <span>FINAL PUBLIC FACILITY</span>
+                <b>{selected.name}</b>
+              </div>
+              <div className="pass-row">
+                <span>NEXT ACTION</span>
+                <b>{assessment.nextAction}</b>
+              </div>
+              <div className="referral-foot">
+                <ShieldCheck />
+                <span>Continuity after correct routing · Prototype only</span>
+              </div>
+            </div>
+            <div className="referral-copy">
+              <p className="kicker">STEP 8 · REFERRAL CONTINUITY</p>
+              <h1>Carry the correct pathway forward.</h1>
+              <p>
+                The referral is not the beginning of RuralCare’s value. It
+                preserves the need, urgency, service, and selected public
+                facility after safe, explainable routing.
+              </p>
+              <div className="flow-actions">
+                <IconButton
+                  Icon={ChevronLeft}
+                  className="ghost"
+                  onClick={() => setView("recommendation")}
+                >
+                  Review recommendation
+                </IconButton>
+                <IconButton Icon={ClipboardPlus} onClick={createReferral}>
+                  Create continuity pass
+                </IconButton>
+              </div>
+            </div>
+          </section>
+        )}
+        {view === "followup" && (
+          <section className="followup-page">
+            <div className="success-mark">
+              <BadgeCheck />
+            </div>
+            <p className="kicker">STEP 9 · FOLLOW-UP</p>
+            <h1>The public-care pathway continues.</h1>
+            <p>
+              Your continuity pass is created or safely queued. The Staff View
+              can now coordinate the next hand-off.
+            </p>
+            <div className="timeline">
+              <div>
+                <span>NOW</span>
+                <section>
+                  <b>Correct service and facility preserved</b>
+                  <p>
+                    The chosen public-care pathway is ready for the receiving
+                    facility.
+                  </p>
+                </section>
+              </div>
+              <div>
+                <span>NEXT</span>
+                <section>
+                  <b>Staff coordination</b>
+                  <p>
+                    ASHA/PHC staff can accept, track arrival, and arrange
+                    follow-up.
+                  </p>
+                </section>
+              </div>
+              <div>
+                <span>FOLLOW-UP</span>
+                <section>
+                  <b>Reminder and status</b>
+                  <p>
+                    Confirm that care was reached and the next action is clear.
+                  </p>
+                </section>
+              </div>
+            </div>
+            <div className="flow-actions">
+              <IconButton
+                Icon={UsersRound}
+                className="ghost"
+                onClick={() => setView("dashboard")}
+              >
+                Open staff coordination
+              </IconButton>
+              <IconButton
+                Icon={Sparkles}
+                onClick={() => {
+                  setView("input");
+                  setMessage("");
+                  setAssessment(null);
+                  setSelected(null);
+                }}
+              >
+                Start another journey
+              </IconButton>
+            </div>
+          </section>
+        )}
+        {view === "dashboard" && (
+          <LiveStaffDashboard onBack={() => setView("input")} />
+        )}
+      </main>
+    </div>
+  );
 }
 
-declare global { interface Window { SpeechRecognition?: any; webkitSpeechRecognition?: any; } }
-createRoot(document.getElementById("root")!).render(<App/>);
+declare global {
+  interface Window {
+    SpeechRecognition?: any;
+    webkitSpeechRecognition?: any;
+  }
+}
+createRoot(document.getElementById("root")!).render(<App />);

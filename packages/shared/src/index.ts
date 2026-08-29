@@ -24,7 +24,12 @@ export type Facility = {
   phone: string;
   latitude: number;
   longitude: number;
+  capacity?: Partial<Record<Service, ServiceCapacity>>;
+  lastUpdated?: string;
 };
+
+export type CapacityStatus = "AVAILABLE" | "LIMITED" | "UNAVAILABLE";
+export type ServiceCapacity = { status: CapacityStatus; estimatedWaitMinutes: number; availableBeds: number; note: string };
 
 const emergencyWords = ["chest pain", "unconscious", "not breathing", "severe bleeding", "seizure", "poison", "suicide", "கடுமையான இரத்தப்போக்கு", "மூச்சு திணறல்", "மயக்கம்", "வலிப்பு"];
 const urgentWords = ["high fever", "fever", "pregnant", "pregnancy", "labour", "labor", "baby", "child", "vomit", "vomiting", "கர்ப்ப", "காய்ச்சல்", "குழந்தை", "வாந்தி"];
@@ -50,10 +55,17 @@ export function calculateDistanceKm(from: { latitude: number; longitude: number 
   const a = Math.sin(deltaLatitude / 2) ** 2 + Math.cos(radians(from.latitude)) * Math.cos(radians(to.latitude)) * Math.sin(deltaLongitude / 2) ** 2;
   return Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
 }
-export function rankFacilities(facilities: Facility[], service: Service): Facility[] {
-  return facilities.filter((facility) => facility.available && facility.services.includes(service)).sort((a, b) => {
-    const aScore = levelScore[a.type] * 2 - a.distanceKm;
-    const bScore = levelScore[b.type] * 2 - b.distanceKm;
+export function travelMinutes(facility: Facility) { return Math.max(6, Math.round(facility.distanceKm * 4.2)); }
+export function serviceCapacity(facility: Facility, service: Service): ServiceCapacity {
+  return facility.capacity?.[service] || { status: facility.available ? "AVAILABLE" : "UNAVAILABLE", estimatedWaitMinutes: facility.available ? 30 : 0, availableBeds: 0, note: facility.available ? "Synthetic demo status" : "Unavailable in synthetic demo shift" };
+}
+const capacityScore: Record<CapacityStatus, number> = { AVAILABLE: 3, LIMITED: 2, UNAVAILABLE: 0 };
+export function rankFacilities(facilities: Facility[], service: Service, urgency: Urgency = "ROUTINE"): Facility[] {
+  return facilities.filter((facility) => facility.services.includes(service) && serviceCapacity(facility, service).status !== "UNAVAILABLE").sort((a, b) => {
+    const aCapacity = serviceCapacity(a, service); const bCapacity = serviceCapacity(b, service);
+    const emergencyWeight = urgency === "EMERGENCY" ? 3 : 2;
+    const aScore = capacityScore[aCapacity.status] * 12 + levelScore[a.type] * emergencyWeight - travelMinutes(a) / 10 - aCapacity.estimatedWaitMinutes / 20;
+    const bScore = capacityScore[bCapacity.status] * 12 + levelScore[b.type] * emergencyWeight - travelMinutes(b) / 10 - bCapacity.estimatedWaitMinutes / 20;
     return bScore - aScore;
   });
 }
