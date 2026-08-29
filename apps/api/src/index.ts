@@ -32,7 +32,9 @@ app.post("/api/triage", (req, res) => {
 app.get("/api/facilities", async (req, res) => {
   const service = z.enum(["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH", "EMERGENCY", "TELECONSULT"]).catch("PRIMARY_CARE").parse(req.query.service);
   const facilities = db.prepare("SELECT * FROM Facility").all().map((record) => asFacility(record as Record<string, unknown>));
-  res.json({ facilities: rankFacilities(facilities, service), dataLabel: "Synthetic prototype availability - verify before travel" });
+  const candidates = facilities.filter((facility) => facility.services.includes(service));
+  const ranked = rankFacilities(facilities, service);
+  res.json({ facilities: ranked, candidates: candidates.map((facility) => ({ ...facility, ranking: ranked.findIndex((item) => item.id === facility.id) + 1, reasons: [`Provides ${serviceLabel(service)}`, `${facility.type.replaceAll("_", " ")} level of care`, `${facility.distanceKm} km from the demo location`, facility.available ? "Available in the current synthetic shift" : "Unavailable in the current synthetic shift" ] })), recommendedId: ranked[0]?.id ?? null, dataLabel: "Synthetic prototype availability - verify before travel" });
 });
 app.post("/api/referrals", async (req, res) => {
   const parsed = z.object({ patientLabel: z.string().trim().min(1).max(40), sourceFacility: z.string(), destinationFacility: z.string(), service: z.string(), urgency: z.string(), nextAction: z.string().max(200), careNeed: z.string().max(120).optional() }).safeParse(req.body);
