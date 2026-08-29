@@ -9,7 +9,7 @@ An offline-capable SIH demonstration app for routing a rural citizen or ASHA wor
 3. In the VS Code terminal run `npm install` once, then run `npm run dev`.
 4. Open the local URL shown for `web` (normally `http://localhost:5173`).
 
-The first run creates a local SQLite database and seeds a fictional Tamil Nadu demo district. Use the **Staff dashboard** link to see the operational view.
+The first run creates a local SQLite database and seeds a fictional Tamil Nadu demo district. The running prototype uses Node's built-in SQLite driver for reliable zero-setup local execution; `apps/api/prisma/schema.prisma` is included as the portable schema for a future Prisma/PostgreSQL deployment. Use the **Staff dashboard** link to see the operational view.
 
 ## Useful commands
 

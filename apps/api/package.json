@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "check": "tsc --noEmit",
-    "db:push": "prisma generate && prisma db push"
+    "db:push": "tsx src/init-db.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
