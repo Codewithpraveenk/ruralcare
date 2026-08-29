@@ -1,0 +1,28 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "sqlite"; url = "file:./ruralcare.db" }
+
+model Facility {
+  id String @id
+  name String
+  type String
+  distanceKm Float
+  services String
+  available Boolean
+  hours String
+  address String
+  phone String
+  latitude Float
+  longitude Float
+}
+
+model Referral {
+  id String @id @default(cuid())
+  patientLabel String
+  sourceFacility String
+  destinationFacility String
+  service String
+  urgency String
+  status String @default("PENDING")
+  nextAction String
+  createdAt DateTime @default(now())
+}

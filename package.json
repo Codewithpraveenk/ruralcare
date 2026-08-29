@@ -1,0 +1,17 @@
+{
+  "name": "ruralcare-connect",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run db:push && concurrently -n api,web -c blue,green \"npm --workspace @ruralcare/api run dev\" \"npm --workspace @ruralcare/web run dev\"",
+    "db:push": "npm --workspace @ruralcare/api run db:push",
+    "build": "npm --workspace @ruralcare/shared run check && npm --workspace @ruralcare/api run check && npm --workspace @ruralcare/web run build",
+    "test": "node --import tsx --test packages/shared/src/triage.test.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
