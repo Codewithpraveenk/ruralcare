@@ -1,4 +1,4 @@
-import { calculateDistanceKm, type Facility, type Service, type ServiceCapacity } from "@ruralcare/shared";
+import { calculateDistanceKm, type CapabilitySource, type Facility, type Service, type ServiceCapacity } from "@ruralcare/shared";
 
 export type DirectoryRecord = { sourceRowId: string; name: string; category: string; careType: string; address: string; district: string; pincode: string; originalCoordinates: string; specialties: string; facilities: string };
 type CoordinateEnrichment = { facilityId: string; sourceRowId: string; latitude: number; longitude: number; lookupSource: string; matchingEvidence: string; retrievedOn: string; confidence: "HIGH"; routingLevel: Facility["type"] };
@@ -86,10 +86,13 @@ export function buildFacilityRecords(): Facility[] {
     if (!source || source.category !== "Public/ Government" || !source.name || !source.address || !source.district || !availability) throw new Error(`Invalid facility source: ${enrichment.facilityId}`);
     if (!Number.isFinite(enrichment.latitude) || !Number.isFinite(enrichment.longitude) || Math.abs(enrichment.latitude) > 90 || Math.abs(enrichment.longitude) > 180) throw new Error(`Invalid coordinates: ${enrichment.facilityId}`);
     const explicitServices = directorySpecialtyServices(source);
+    const capabilitySource: CapabilitySource = explicitServices.length ? "SOURCED_FROM_DIRECTORY" : "INFERRED_FROM_FACILITY_TYPE";
     const services = explicitServices.length ? explicitServices : referenceServices[enrichment.routingLevel];
-    return { id: enrichment.facilityId, name: source.name, type: enrichment.routingLevel, services, available: availability.available, hours: availability.note, address: source.address, phone: "Not published in supplied directory", latitude: enrichment.latitude, longitude: enrichment.longitude, distanceKm: calculateDistanceKm(demoOrigin, enrichment), capacity: syntheticCapacity[enrichment.facilityId] || {}, lastUpdated: "Synthetic demo shift · 09:30 IST" };
+    const serviceSources = Object.fromEntries(services.map((service) => [service, capabilitySource])) as Partial<Record<Service, CapabilitySource>>;
+    return { id: enrichment.facilityId, name: source.name, type: enrichment.routingLevel, services, capabilitySource, serviceSources, available: availability.available, hours: availability.note, address: source.address, phone: "Not published in supplied directory", latitude: enrichment.latitude, longitude: enrichment.longitude, distanceKm: calculateDistanceKm(demoOrigin, enrichment), capacity: syntheticCapacity[enrichment.facilityId] || {}, lastUpdated: "Synthetic demo shift · 09:30 IST" };
   });
 }
 export function facilityProvenance() {
-  return { source: "Government of India hospital_directory.csv", filter: { state: "Tamil Nadu", hospitalCategory: "Public/ Government" }, sourceRecords: tamilNaduPublicDirectory.length, includedFacilities: coordinateEnrichments.map(({ facilityId, sourceRowId, lookupSource, matchingEvidence, retrievedOn, confidence }) => ({ facilityId, sourceRowId, lookupSource, matchingEvidence, retrievedOn, confidence })), labels: ["Real government-directory identity", "Coordinate enriched", "Distance calculated", "IPHS reference service fit", "Synthetic demo availability"] };
+  const records = buildFacilityRecords();
+  return { source: "Government of India National Hospital Directory (hospital_directory.csv)", sourceUrl: "https://www.data.gov.in/resource/national-hospital-directory-geo-code-and-additional-parameters-updated-till-last-month", filter: { state: "Tamil Nadu", hospitalCategory: "Public/ Government" }, sourceRecords: tamilNaduPublicDirectory.length, includedFacilities: coordinateEnrichments.map(({ facilityId, sourceRowId, lookupSource, matchingEvidence, retrievedOn, confidence }) => ({ facilityId, sourceRowId, lookupSource, matchingEvidence, retrievedOn, confidence })), capabilities: { sourced: records.filter((record) => record.capabilitySource === "SOURCED_FROM_DIRECTORY").length, inferred: records.filter((record) => record.capabilitySource === "INFERRED_FROM_FACILITY_TYPE").length }, labels: ["Official directory identity", "Coordinate enriched from a separately cited public map source", "Distance calculated only for enriched coordinates", "SOURCED_FROM_DIRECTORY or INFERRED_FROM_FACILITY_TYPE", "Synthetic demo availability"] };
 }

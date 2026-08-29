@@ -5,11 +5,13 @@ import { z } from "zod";
 import { assessNeed, rankFacilities, serviceCapacity, travelMinutes, type Facility, type Service } from "@ruralcare/shared";
 import { db, initializeDatabase } from "./db.ts";
 import { facilityProvenance } from "./facility-directory.ts";
+import { demoFacilities } from "./data.ts";
 
 const app = express();
 app.use(cors()); app.use(express.json({ limit: "100kb" }));
 function asFacility(record: Record<string, unknown>): Facility {
-  return { ...record, type: record.type as Facility["type"], distanceKm: Number(record.distanceKm), available: Boolean(record.available), latitude: Number(record.latitude), longitude: Number(record.longitude), services: JSON.parse(String(record.services)) as Service[], capacity: JSON.parse(String(record.capacityData || "{}")), lastUpdated: String(record.lastUpdated || "Synthetic demo shift") } as Facility;
+  const source = demoFacilities.find((item) => item.id === record.id);
+  return { ...record, type: record.type as Facility["type"], distanceKm: Number(record.distanceKm), available: Boolean(record.available), latitude: Number(record.latitude), longitude: Number(record.longitude), services: JSON.parse(String(record.services)) as Service[], capacity: JSON.parse(String(record.capacityData || "{}")), lastUpdated: String(record.lastUpdated || "Synthetic demo shift"), capabilitySource: source?.capabilitySource, serviceSources: source?.serviceSources } as Facility;
 }
 const stages = ["CREATED", "ACCEPTED", "ARRIVED", "FOLLOW_UP"] as const;
 const stageLabel = (stage: string) => stage === "FOLLOW_UP" ? "Follow-up" : stage.slice(0, 1) + stage.slice(1).toLowerCase();
@@ -36,7 +38,7 @@ app.get("/api/facilities", async (req, res) => {
   const facilities = db.prepare("SELECT * FROM Facility").all().map((record) => asFacility(record as Record<string, unknown>));
   const candidates = facilities.filter((facility) => facility.services.includes(service));
   const ranked = rankFacilities(facilities, service);
-  res.json({ facilities: ranked, candidates: candidates.map((facility) => { const capacity = serviceCapacity(facility, service); return { ...facility, travelMinutes: travelMinutes(facility), serviceCapacity: capacity, ranking: ranked.findIndex((item) => item.id === facility.id) + 1, rerouteReason: capacity.status === "UNAVAILABLE" ? `${serviceLabel(service)} is unavailable in this synthetic shift.` : null, reasons: [`Reference service fit: ${serviceLabel(service)}`, `${facility.type.replaceAll("_", " ")} level of care`, `${travelMinutes(facility)} min demo travel estimate`, `${capacity.status.toLowerCase()} capacity · ${capacity.estimatedWaitMinutes} min wait · ${capacity.availableBeds} beds` ] }; }), recommendedId: ranked[0]?.id ?? null, dataLabel: "Real directory identity and coordinates; synthetic prototype capacity and travel estimates - verify before travel" });
+  res.json({ facilities: ranked, candidates: candidates.map((facility) => { const capacity = serviceCapacity(facility, service); const capability = facility.serviceSources?.[service] || "INFERRED_FROM_FACILITY_TYPE"; return { ...facility, travelMinutes: travelMinutes(facility), serviceCapacity: capacity, capabilitySource: capability, ranking: ranked.findIndex((item) => item.id === facility.id) + 1, rerouteReason: capacity.status === "UNAVAILABLE" ? `${serviceLabel(service)} is unavailable in this synthetic shift.` : null, reasons: [`${capability}: ${serviceLabel(service)}`, `${facility.type.replaceAll("_", " ")} level of care`, `${travelMinutes(facility)} min demo travel estimate`, `${capacity.status.toLowerCase()} capacity · ${capacity.estimatedWaitMinutes} min wait · ${capacity.availableBeds} beds` ] }; }), recommendedId: ranked[0]?.id ?? null, dataLabel: "Official directory identity; separately sourced coordinates; synthetic capacity/travel - verify before travel" });
 });
 app.post("/api/referrals", async (req, res) => {
   const parsed = z.object({ patientLabel: z.string().trim().min(1).max(40), sourceFacility: z.string(), destinationFacility: z.string(), service: z.string(), urgency: z.string(), nextAction: z.string().max(200), careNeed: z.string().max(120).optional() }).safeParse(req.body);

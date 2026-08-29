@@ -1907,9 +1907,9 @@ function App() {
               <button
                 className="emergency-button"
                 onClick={() => {
-                  setMessage("I need emergency help: chest pain");
+                  setMessage("I need emergency help: chest pain and difficulty breathing");
                   setAssessment(
-                    assessNeed("I need emergency help: chest pain"),
+                    assessNeed("I need emergency help: chest pain and difficulty breathing"),
                   );
                   setView("urgency");
                 }}
@@ -2008,6 +2008,17 @@ function App() {
                   <p>{assessment.nextAction}</p>
                 </section>
               </div>
+              {assessment.triggeredRules.length > 0 && (
+                <div className="rule-audit" aria-label="Safety rule details">
+                  {assessment.triggeredRules.map((item) => (
+                    <div key={item.triggeredRuleId}>
+                      <b>{item.triggeredRuleId}</b>
+                      <span>{item.finding}</span>
+                      <small>{item.guidelineReference}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
               {assessment.urgency === "EMERGENCY" ? (
                 <div className="emergency-actions">
                   <IconButton
@@ -2022,6 +2033,14 @@ function App() {
                     Emergency cases do not continue into normal facility
                     matching.
                   </p>
+                </div>
+              ) : assessment.urgency === "INSUFFICIENT_INFORMATION" ? (
+                <div className="missing-information">
+                  <b>Safety details needed before routing</b>
+                  <ul>
+                    {assessment.missingInformation.map((question) => <li key={question}>{question}</li>)}
+                  </ul>
+                  <IconButton Icon={ChevronLeft} onClick={() => setView("input")}>Add these details</IconButton>
                 </div>
               ) : (
                 <div className="flow-actions">

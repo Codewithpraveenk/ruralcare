@@ -1,71 +1,21 @@
-export type Urgency = "EMERGENCY" | "URGENT" | "ROUTINE";
+export type Urgency = "EMERGENCY" | "URGENT" | "ROUTINE" | "INSUFFICIENT_INFORMATION";
 export type Service = "PRIMARY_CARE" | "MATERNITY" | "CHILD_HEALTH" | "EMERGENCY" | "TELECONSULT";
-
-export type Assessment = {
-  urgency: Urgency;
-  service: Service;
-  symptoms: string[];
-  duration: string;
-  explanation: string;
-  nextAction: string;
-  language: "ta" | "en" | "mixed";
-  redFlags: string[];
-};
-
-export type Facility = {
-  id: string;
-  name: string;
-  type: "AAM" | "PHC" | "CHC" | "DISTRICT_HOSPITAL" | "DISPENSARY";
-  distanceKm: number;
-  services: Service[];
-  available: boolean;
-  hours: string;
-  address: string;
-  phone: string;
-  latitude: number;
-  longitude: number;
-  capacity?: Partial<Record<Service, ServiceCapacity>>;
-  lastUpdated?: string;
-};
-
 export type CapacityStatus = "AVAILABLE" | "LIMITED" | "UNAVAILABLE";
 export type ServiceCapacity = { status: CapacityStatus; estimatedWaitMinutes: number; availableBeds: number; note: string };
+export type CapabilitySource = "SOURCED_FROM_DIRECTORY" | "INFERRED_FROM_FACILITY_TYPE";
+export type TriggeredRule = { triggeredRuleId: string; finding: string; guidelineReference: string; explanation: string };
+export type ClinicalExtraction = { ageGroup: "CHILD" | "ADULT" | "UNKNOWN"; symptoms: string[]; duration: string; childFever: boolean; canDrink: boolean | null; repeatedVomiting: boolean | null; convulsions: boolean | null; consciousnessChange: boolean | null; breathingDifficulty: boolean | null; stiffNeck: boolean | null; severeBleeding: boolean | null; pregnancy: boolean | null };
+export type Assessment = { urgency: Urgency; service: Service; symptoms: string[]; duration: string; explanation: string; nextAction: string; language: "ta" | "en" | "mixed"; redFlags: string[]; extraction: ClinicalExtraction; triggeredRules: TriggeredRule[]; missingInformation: string[] };
+export type Facility = { id: string; name: string; type: "AAM" | "PHC" | "CHC" | "DISTRICT_HOSPITAL" | "DISPENSARY"; distanceKm: number; services: Service[]; available: boolean; hours: string; address: string; phone: string; latitude: number; longitude: number; capacity?: Partial<Record<Service, ServiceCapacity>>; lastUpdated?: string; capabilitySource?: CapabilitySource; serviceSources?: Partial<Record<Service, CapabilitySource>> };
 
-const emergencyWords = ["chest pain", "unconscious", "not breathing", "severe bleeding", "seizure", "poison", "suicide", "கடுமையான இரத்தப்போக்கு", "மூச்சு திணறல்", "மயக்கம்", "வலிப்பு"];
-const urgentWords = ["high fever", "fever", "pregnant", "pregnancy", "labour", "labor", "baby", "child", "vomit", "vomiting", "கர்ப்ப", "காய்ச்சல்", "குழந்தை", "வாந்தி"];
+const refs = { child: "WHO IMCI Chart Booklet (2014): general danger signs include inability to drink/breastfeed, vomiting everything, convulsions, lethargy or unconsciousness.", fever: "WHO IMCI Chart Booklet (2014): a stiff neck is a severe finding in child fever assessment.", adult: "WHO/ICRC Basic Emergency Care (2018): breathing difficulty, altered consciousness and severe chest symptoms need immediate assessment.", pregnancy: "WHO antenatal-care guidance: pregnancy danger concerns need prompt in-person assessment." };
+const t: Record<string, string[]> = { child:["child","baby","infant","toddler","குழந்தை","சிசு"], fever:["fever","temperature","காய்ச்சல்"], noDrink:["cannot drink","can't drink","not drinking","unable to drink","குடிக்க முடிய","குடிக்கவில்லை"], yesDrink:["drinking well","can drink","feeding well","குடிக்கிறார்","குடிக்க முடிகிறது"], vomit:["vomits everything","vomiting everything","repeated vomiting","keeps vomiting","தொடர்ந்து வாந்தி","எல்லாவற்றையும் வாந்தி"], seizure:["seizure","convulsion","fits","வலிப்பு"], consciousness:["unconscious","not waking","confused","lethargic","மயக்கம்","சுயநினைவு இல்லை"], breathing:["not breathing","difficulty breathing","shortness of breath","breathless","மூச்சு திணறல்"], stiff:["stiff neck","neck stiffness","கழுத்து விறைப்பு"], bleeding:["severe bleeding","heavy bleeding","கடுமையான இரத்தப்போக்கு"], pregnancy:["pregnant","pregnancy","labour","labor","கர்ப்ப","பிரசவ"], chest:["chest pain","chest pressure","மார்பு வலி"] };
+const has = (x:string, words:string[]) => words.some(w => x.includes(w));
+const detected = (x:string, positive:string[], negative:string[]) => has(x, positive) ? true : has(x, negative) ? false : null;
+const mention = (x:string, positive:string[], negative:string[]) => has(x, negative) ? false : has(x, positive) ? true : null;
+export function extractClinicalInformation(message: string): ClinicalExtraction { const x=message.toLowerCase(); const ageGroup=has(x,t.child)?"CHILD":/adult|elderly|woman|man|years old| வயது/.test(x)?"ADULT":"UNKNOWN"; const symptoms=[has(x,t.fever)&&"fever",has(x,t.chest)&&"chest discomfort",mention(x,t.breathing,["no breathing difficulty","no difficulty breathing"])===true&&"breathing difficulty",mention(x,t.vomit,["no vomiting","not vomiting"])===true&&"vomiting",has(x,t.bleeding)&&"bleeding",has(x,t.pregnancy)&&"pregnancy-related concern"].filter(Boolean) as string[]; return { ageGroup,symptoms,duration:/\d+\s*(day|days|week|weeks|நாள்)/.test(x)?"Mentioned by user":"Not specified",childFever:ageGroup==="CHILD"&&has(x,t.fever),canDrink:detected(x,t.yesDrink,t.noDrink),repeatedVomiting:mention(x,t.vomit,["no vomiting","not vomiting"]),convulsions:mention(x,t.seizure,["no seizure","no convulsion","no fits"]),consciousnessChange:mention(x,t.consciousness,["awake","not confused","no confusion"]),breathingDifficulty:mention(x,t.breathing,["no breathing difficulty","no difficulty breathing"]),stiffNeck:mention(x,t.stiff,["no stiff neck","no neck stiffness"]),severeBleeding:mention(x,t.bleeding,["no bleeding"]),pregnancy:has(x,t.pregnancy)?true:null }; }
+const lang=(m:string):Assessment["language"]=>/[\u0B80-\u0BFF]/.test(m)?(/[a-z]/i.test(m)?"mixed":"ta"):"en";
+const rule=(triggeredRuleId:string,finding:string,guidelineReference:string,explanation:string):TriggeredRule=>({triggeredRuleId,finding,guidelineReference,explanation});
+export function assessNeed(message: string): Assessment { const e=extractClinicalInformation(message), x=message.toLowerCase(), rules:TriggeredRule[]=[]; if(e.severeBleeding)rules.push(rule("EMR_SEVERE_BLEEDING","Severe bleeding was described.",refs.adult,"Heavy bleeding can need immediate in-person help; this app cannot identify its cause.")); if(e.convulsions)rules.push(rule("EMR_CONVULSION","A convulsion/seizure was described.",refs.child,"A seizure is a danger sign that needs immediate in-person assessment.")); if(e.consciousnessChange)rules.push(rule("EMR_ALTERED_CONSCIOUSNESS","Loss of consciousness, confusion, or inability to wake was described.",refs.child,"A change in alertness is a danger sign that needs immediate in-person assessment.")); if(e.breathingDifficulty)rules.push(rule("EMR_BREATHING_DIFFICULTY","Difficulty breathing was described.",refs.adult,"Breathing difficulty can be high risk and needs immediate in-person assessment.")); if(e.stiffNeck&&e.childFever)rules.push(rule("EMR_CHILD_FEVER_STIFF_NECK","A child with fever and stiff neck was described.",refs.fever,"This combination is a danger sign in child-fever assessment and needs immediate help.")); const service:Service=e.pregnancy?"MATERNITY":e.ageGroup==="CHILD"?"CHILD_HEALTH":"PRIMARY_CARE"; if(rules.length)return {urgency:"EMERGENCY",service:"EMERGENCY",symptoms:e.symptoms.length?e.symptoms:["Reported danger sign"],duration:e.duration,language:lang(message),redFlags:rules.map(r=>r.finding),extraction:e,triggeredRules:rules,missingInformation:[],explanation:"Immediate high-risk warning signs were reported. This is not a diagnosis.",nextAction:"Seek immediate in-person emergency help. Do not wait for an app response."}; if(e.childFever&&(e.canDrink===null||e.repeatedVomiting===null||e.convulsions===null||e.consciousnessChange===null||e.breathingDifficulty===null||e.stiffNeck===null)){const missingInformation=[e.canDrink===null&&"Can the child drink or breastfeed normally?",e.repeatedVomiting===null&&"Is the child vomiting everything or repeatedly?",e.convulsions===null&&"Has the child had a seizure/convulsion?",e.consciousnessChange===null&&"Is the child unusually sleepy, confused, or difficult to wake?",e.breathingDifficulty===null&&"Is there difficulty breathing?",e.stiffNeck===null&&"Is there a stiff neck?"].filter(Boolean) as string[];return {urgency:"INSUFFICIENT_INFORMATION",service,symptoms:e.symptoms,duration:e.duration,language:lang(message),redFlags:[],extraction:e,triggeredRules:rules,missingInformation,explanation:"A mild child fever alone is not automatically urgent. Safety details are needed before this prototype can classify the request.",nextAction:"Answer the safety questions, or seek a health worker’s help if you are worried."};} if(has(x,t.chest)&&!/mild|slight|லேசான/.test(x))return {urgency:"INSUFFICIENT_INFORMATION",service,symptoms:e.symptoms,duration:e.duration,language:lang(message),redFlags:[],extraction:e,triggeredRules:[],missingInformation:["Is there difficulty breathing, fainting/confusion, or severe sweating?","Did the chest discomfort start suddenly or become severe?"],explanation:"More safety information is needed before this prototype can classify chest discomfort.",nextAction:"Answer the questions; seek immediate human help if symptoms are severe or worsening."}; if(e.pregnancy&&/bleeding|severe pain|reduced movement|நடமாட்டம் குறை/.test(x)){const r=rule("URG_PREGNANCY_DANGER_CONCERN","A pregnancy-related warning concern was described.",refs.pregnancy,"Prompt same-day assessment is recommended; this app cannot diagnose the cause.");return {urgency:"URGENT",service,symptoms:e.symptoms,duration:e.duration,language:lang(message),redFlags:[r.finding],extraction:e,triggeredRules:[r],missingInformation:[],explanation:r.explanation,nextAction:"Arrange prompt same-day assessment at a suitable public facility."};}return {urgency:"ROUTINE",service,symptoms:e.symptoms.length?e.symptoms:["General health concern"],duration:e.duration,language:lang(message),redFlags:[],extraction:e,triggeredRules:[],missingInformation:[],explanation:"No urgent warning signs were identified from the information provided. This is navigation support, not medical diagnosis.",nextAction:"Visit a suitable public primary-care facility, or seek human help sooner if symptoms worsen."}; }
 
-export function assessNeed(message: string): Assessment {
-  const normalized = message.toLowerCase();
-  const redFlags = emergencyWords.filter((word) => normalized.includes(word));
-  const language = /[\u0B80-\u0BFF]/.test(message) ? (/[a-z]/i.test(message) ? "mixed" : "ta") : "en";
-  if (redFlags.length) return { urgency: "EMERGENCY", service: "EMERGENCY", symptoms: redFlags, duration: "Not assessed", language, redFlags, explanation: "Possible emergency warning signs were detected. This prototype cannot diagnose the cause.", nextAction: "Seek immediate in-person emergency help. Do not wait for an app response." };
-  const hits = urgentWords.filter((word) => normalized.includes(word));
-  const maternity = /pregnant|pregnancy|labour|labor|கர்ப்ப/.test(normalized);
-  const child = /baby|child|குழந்தை/.test(normalized);
-  const urgency: Urgency = hits.length ? "URGENT" : "ROUTINE";
-  const service: Service = maternity ? "MATERNITY" : child ? "CHILD_HEALTH" : "PRIMARY_CARE";
-  return { urgency, service, symptoms: hits.length ? hits : ["General health concern"], duration: /day|week|நாள்/.test(normalized) ? "Mentioned by user" : "Not specified", language, redFlags: [], explanation: urgency === "URGENT" ? "Your message suggests a concern that should be assessed by a public facility today." : "This is a navigation suggestion, not a medical diagnosis.", nextAction: urgency === "URGENT" ? "Visit a suitable public facility today." : "Visit a suitable public primary-care facility." };
-}
-
-const levelScore: Record<Facility["type"], number> = { AAM: 1, DISPENSARY: 1, PHC: 2, CHC: 3, DISTRICT_HOSPITAL: 4 };
-export function calculateDistanceKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
-  const radians = (value: number) => value * Math.PI / 180;
-  const deltaLatitude = radians(to.latitude - from.latitude);
-  const deltaLongitude = radians(to.longitude - from.longitude);
-  const a = Math.sin(deltaLatitude / 2) ** 2 + Math.cos(radians(from.latitude)) * Math.cos(radians(to.latitude)) * Math.sin(deltaLongitude / 2) ** 2;
-  return Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
-}
-export function travelMinutes(facility: Facility) { return Math.max(6, Math.round(facility.distanceKm * 4.2)); }
-export function serviceCapacity(facility: Facility, service: Service): ServiceCapacity {
-  return facility.capacity?.[service] || { status: facility.available ? "AVAILABLE" : "UNAVAILABLE", estimatedWaitMinutes: facility.available ? 30 : 0, availableBeds: 0, note: facility.available ? "Synthetic demo status" : "Unavailable in synthetic demo shift" };
-}
-const capacityScore: Record<CapacityStatus, number> = { AVAILABLE: 3, LIMITED: 2, UNAVAILABLE: 0 };
-export function rankFacilities(facilities: Facility[], service: Service, urgency: Urgency = "ROUTINE"): Facility[] {
-  return facilities.filter((facility) => facility.services.includes(service) && serviceCapacity(facility, service).status !== "UNAVAILABLE").sort((a, b) => {
-    const aCapacity = serviceCapacity(a, service); const bCapacity = serviceCapacity(b, service);
-    const emergencyWeight = urgency === "EMERGENCY" ? 3 : 2;
-    const aScore = capacityScore[aCapacity.status] * 12 + levelScore[a.type] * emergencyWeight - travelMinutes(a) / 10 - aCapacity.estimatedWaitMinutes / 20;
-    const bScore = capacityScore[bCapacity.status] * 12 + levelScore[b.type] * emergencyWeight - travelMinutes(b) / 10 - bCapacity.estimatedWaitMinutes / 20;
-    return bScore - aScore;
-  });
-}
+const levelScore:Record<Facility["type"],number>={AAM:1,DISPENSARY:1,PHC:2,CHC:3,DISTRICT_HOSPITAL:4}; export function calculateDistanceKm(from:{latitude:number;longitude:number},to:{latitude:number;longitude:number}){const r=(v:number)=>v*Math.PI/180,dLat=r(to.latitude-from.latitude),dLong=r(to.longitude-from.longitude),a=Math.sin(dLat/2)**2+Math.cos(r(from.latitude))*Math.cos(r(to.latitude))*Math.sin(dLong/2)**2;return Math.round(6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;} export function travelMinutes(f:Facility){return Math.max(6,Math.round(f.distanceKm*4.2));} export function serviceCapacity(f:Facility,s:Service):ServiceCapacity{return f.capacity?.[s]||{status:f.available?"AVAILABLE":"UNAVAILABLE",estimatedWaitMinutes:f.available?30:0,availableBeds:0,note:f.available?"Synthetic demo status":"Unavailable in synthetic demo shift"};} const cap:Record<CapacityStatus,number>={AVAILABLE:3,LIMITED:2,UNAVAILABLE:0}; export function rankFacilities(facilities:Facility[],service:Service,urgency:Urgency="ROUTINE"):Facility[]{return facilities.filter(f=>f.services.includes(service)&&serviceCapacity(f,service).status!=="UNAVAILABLE").sort((a,b)=>{const ac=serviceCapacity(a,service),bc=serviceCapacity(b,service),w=urgency==="EMERGENCY"?3:2;return cap[bc.status]*12+levelScore[b.type]*w-travelMinutes(b)/10-bc.estimatedWaitMinutes/20-(cap[ac.status]*12+levelScore[a.type]*w-travelMinutes(a)/10-ac.estimatedWaitMinutes/20);});}

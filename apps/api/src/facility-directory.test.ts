@@ -23,10 +23,11 @@ test("facility distances are derived from coordinates and the labelled demo orig
   for (const facility of buildFacilityRecords()) assert.equal(facility.distanceKm, calculateDistanceKm(demoOrigin, facility));
 });
 
-test("blank directory specialty data is only used through reference routing, not marked verified", () => {
+test("blank directory specialty data is conservatively inferred and visibly labelled", () => {
   const blankSpecialtyFacility = buildFacilityRecords().find((facility) => facility.id === "gopalapuram-dispensary");
   assert.deepEqual(blankSpecialtyFacility?.services, ["PRIMARY_CARE"]);
-  assert.ok(facilityProvenance().labels.includes("IPHS reference service fit"));
+  assert.equal(blankSpecialtyFacility?.capabilitySource, "INFERRED_FROM_FACILITY_TYPE");
+  assert.ok(facilityProvenance().labels.includes("SOURCED_FROM_DIRECTORY or INFERRED_FROM_FACILITY_TYPE"));
 });
 
 test("synthetic shift availability reroutes away from the real but unavailable facility", () => {

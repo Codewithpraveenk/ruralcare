@@ -23,14 +23,14 @@ Choose Tamil or English, enter a need such as `My child has fever and cough for 
 
 ## Facility data provenance
 
-The facility identity source is the supplied Government of India/National Health Portal `hospital_directory.csv`, filtered to `State = Tamil Nadu` and `Hospital_Category = Public/ Government`. The versioned 20-record extract, coordinate-enrichment register, validation rules, IPHS reference profiles, and demo-shift availability are kept separately in `apps/api/src/facility-directory.ts`. The source file has 2,399 Tamil Nadu rows, but only 20 are explicitly public/government and all their source-coordinate values are blank. Only five records with a documented exact coordinate match are admitted to routing.
+The facility identity source is the Government of India/National Health Portal `hospital_directory.csv`, filtered to `State = Tamil Nadu` and `Hospital_Category = Public/ Government`. The versioned 20-record curated extract, coordinate-enrichment register, validation rules, conservative facility-type fallback, and demo-shift availability are kept separately in `apps/api/src/facility-directory.ts`. The retrieved source file has 2,399 Tamil Nadu rows; the prototype imports 20 selected public/government records and all supplied Tamil Nadu coordinate values were blank. Only five records with a documented exact coordinate match are admitted to routing.
 
 | Field | Treatment |
 | --- | --- |
 | Facility name, address, district, pincode, care category | Real: supplied CSV fields `Hospital_Name`, `Address_Original_First_Line`, `District`, `Pincode`, `Hospital_Care_Type`, and `Hospital_Category` |
 | Latitude / longitude | Real coordinate enrichment: public-map lookup against the supplied name/address/pincode, source URL, evidence, retrieval date, and confidence; the supplied Tamil Nadu `Location_Coordinates` values are blank |
 | Distance | Calculated locally with the Haversine formula from a clearly labelled fixed demo-origin coordinate; never stored as an invented source value |
-| Service fit | Explicit source specialties/facilities take precedence. Blank source detail uses an IPHS care-level reference mapping; it is not a live confirmation of a department or clinician |
+| Service fit | Explicit source specialties/facilities are labelled `SOURCED_FROM_DIRECTORY`. Blank source detail uses a conservative facility-type fallback labelled `INFERRED_FROM_FACILITY_TYPE`; it is not verified capability, staffing, or clinician availability |
 | Availability, hours/readiness | Synthetic demo-shift state only; always verify before travel |
 | Patients, referrals, staff activity, demand | Synthetic and non-identifying demo records |
 
@@ -41,6 +41,9 @@ For a judge-facing machine-readable explanation, call `GET /api/facility-data`. 
 ## Safety and data
 
 - Facility identity and coordinates are real-directory/enriched records as documented above; availability and all care records are synthetic prototype data.
-- Emergency keywords bypass normal recommendations and show urgent human-care guidance.
-- AI is optional and never decides emergency routing or facility ranking.
+- Deterministic rules—not an LLM—produce `EMERGENCY`, `URGENT`, `ROUTINE`, or `INSUFFICIENT_INFORMATION`. Every non-routine result exposes its rule ID, finding, source reference, and non-diagnostic explanation.
+- A child fever alone requests safety details before classification; it never automatically becomes urgent.
+- AI, if configured in a future deployment, may only extract validated structured facts. It never decides urgency, emergency routing, or facility ranking.
 - Do not put API keys in source code or commit `.env`.
+
+Read [the data and triage audit](docs/data-and-triage-audit.md) for source counts, Chengalpattu coverage, citations, simulated fields, and limitations.
