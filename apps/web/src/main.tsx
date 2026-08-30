@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -164,7 +164,7 @@ async function request(path: string, init?: RequestInit) {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
-  if (!response.ok) throw new Error("Network unavailable");
+  if (!response.ok) {let message="Network unavailable";try{const problem=await response.json();message=problem.error||message;}catch{/* keep connectivity fallback */}throw new Error(message);}
   return response.json();
 }
 function queueReferral(data: unknown) {
@@ -1648,7 +1648,9 @@ function App() {
   const [selected, setSelected] = useState<FacilityCandidate | null>(null);
   const [currentReferral, setCurrentReferral] = useState<Record<string, any> | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
-  const [voiceState, setVoiceState] = useState<"IDLE" | "LISTENING" | "PROCESSING">("IDLE");
+  const [voiceState, setVoiceState] = useState<"IDLE" | "RECORDING" | "TRANSCRIBING">("IDLE");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
   const [patientLabel, setPatientLabel] = useState("Demo patient");
   const [notice, setNotice] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
@@ -1797,26 +1799,8 @@ function App() {
   async function confirmReroute(){if(!currentReferral)return;try{const result=await request(`/api/referrals/${currentReferral.id}/reroute/confirm`,{method:"POST"});setCurrentReferral(result.referral);setNotice("Alternative public facility confirmed. Referral history was preserved.");}catch{setNotice("Reroute confirmation needs a connection. Your original destination is unchanged.");}}
   async function submitFollowUp(outcome:"CARE_REACHED"|"COULD_NOT_REACH"|"SERVICE_NOT_AVAILABLE"|"FOLLOW_UP_NEEDED") {if(!currentReferral)return;const clientId=crypto.randomUUID(),body={clientId,outcome,note:followUpNote,sourceMode};const path=`/api/referrals/${currentReferral.id}/follow-up`;try{const result=await request(path,{method:"POST",body:JSON.stringify(body)});setCurrentReferral(result.referral?.referral||currentReferral);setSyncState("SYNCED");setNotice(outcome==="CARE_REACHED"?"Care reached and continuity completed.":"Follow-up outcome shared with Staff View.");}catch{await queueAction({id:clientId,path,method:"POST",body});setSyncState("PENDING_SYNC");setNotice("Follow-up saved offline and waiting to sync.");}}
   useEffect(()=>{if(view!=="followup"||!currentReferral||!online)return;const timer=window.setInterval(()=>{refreshReferral();},10000);return()=>window.clearInterval(timer);},[view,currentReferral?.id,online]);
-  function voice(spokenLanguage: "ta" | "en" = language) {
-    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Speech)
-      return setNotice(
-        "Speech recognition is unavailable here. Use current Chrome or Edge and allow microphone access, or type the need.",
-      );
-    setLanguage(spokenLanguage);
-    const recognition = new Speech();
-    recognition.lang = spokenLanguage === "ta" ? "ta-IN" : "en-IN";
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    const existing=message.trim();
-    recognition.onstart=()=>{setVoiceState("LISTENING");setNotice(spokenLanguage==="ta"?"கேட்கிறேன்… தமிழில் தெளிவாக பேசுங்கள்.":"Listening… speak clearly.");};
-    recognition.onspeechend=()=>{setVoiceState("PROCESSING");recognition.stop();};
-    recognition.onresult=(event:any)=>{let transcript="";for(let index=event.resultIndex;index<event.results.length;index+=1)transcript+=event.results[index][0].transcript;setMessage(`${existing}${existing&&transcript?" ":""}${transcript}`.trim());};
-    recognition.onerror=(event:any)=>{setVoiceState("IDLE");const errors:Record<string,string>={"not-allowed":"Microphone permission was blocked. Allow microphone access in the address bar and try again.","no-speech":"No speech was detected. Tap the Tamil microphone and speak closer to the device.","audio-capture":"No working microphone was found.",network:"Speech recognition needs connectivity in this browser. Typed Tamil still works offline."};setNotice(errors[event.error]||"Speech recognition stopped. Please try again or type the need.");};
-    recognition.onend=()=>{setVoiceState("IDLE");};
-    try{recognition.start();}catch{setVoiceState("IDLE");setNotice("The microphone is already starting. Please wait and try once more.");}
-  }
+  async function transcribeRecording(blob:Blob,spokenLanguage:"ta"|"en") {setVoiceState("TRANSCRIBING");setNotice(spokenLanguage==="ta"?"தமிழ் குரலை எழுத்தாக மாற்றுகிறோம்…":"Converting speech to text…");try{const audioBase64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});const result=await request("/api/transcribe",{method:"POST",body:JSON.stringify({audioBase64,mimeType:blob.type||"audio/webm",language:spokenLanguage})});setMessage(previous=>`${previous.trim()}${previous.trim()?" ":""}${result.text}`.trim());setNotice(spokenLanguage==="ta"?"தமிழ் உரை பெட்டியில் சேர்க்கப்பட்டது. சரிபார்த்து தொடரவும்.":"Transcript added. Review it, then continue.");}catch(error:any){setNotice(error?.message||"Audio could not be transcribed. Check the API key and connectivity.");}finally{setVoiceState("IDLE");}}
+  async function voice(spokenLanguage:"ta"|"en"=language){if(voiceState==="RECORDING"){if(recordingTimerRef.current)window.clearTimeout(recordingTimerRef.current);recorderRef.current?.stop();return;}if(voiceState!=="IDLE")return;setLanguage(spokenLanguage);if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined")return setNotice("Audio recording is unavailable in this browser. Please type the need.");try{const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const preferred=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus"].find(type=>MediaRecorder.isTypeSupported(type));const recorder=new MediaRecorder(stream,preferred?{mimeType:preferred}:undefined),chunks:BlobPart[]=[];recorderRef.current=recorder;recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};recorder.onstop=()=>{stream.getTracks().forEach(track=>track.stop());recorderRef.current=null;const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});if(blob.size<500){setVoiceState("IDLE");setNotice("No usable speech was recorded. Tap once, speak, then tap Stop.");return;}void transcribeRecording(blob,spokenLanguage);};recorder.onerror=()=>{stream.getTracks().forEach(track=>track.stop());setVoiceState("IDLE");setNotice("The microphone recording failed. Check browser microphone permission.");};recorder.start(250);setVoiceState("RECORDING");setNotice(spokenLanguage==="ta"?"பதிவு செய்கிறது… பேசி முடித்ததும் நிறுத்தவும் அழுத்தவும்.":"Recording… tap Stop when you finish speaking.");recordingTimerRef.current=window.setTimeout(()=>{if(recorder.state==="recording")recorder.stop();},12000);}catch(error:any){setVoiceState("IDLE");setNotice(error?.name==="NotAllowedError"?"Microphone permission was blocked. Allow it in the address bar, then try again.":"Could not open the microphone. Check that it is connected and not used by another app.");}}
   const standardCard = (children: React.ReactNode) => (
     <section className="flow-card pathway-card">{children}</section>
   );
@@ -1947,10 +1931,11 @@ function App() {
                 <div className="input-actions">
                   <div className="voice-inputs" aria-label="Voice input language">
                     <IconButton Icon={Mic} className={`ghost tamil-voice ${voiceState!=="IDLE"?"listening":""}`} onClick={() => voice("ta")}>
-                      {voiceState!=="IDLE"&&language==="ta"?"கேட்கிறேன்…":"தமிழில் பேசுங்கள்"}
+                      {voiceState==="RECORDING"&&language==="ta"?"நிறுத்தி எழுத்தாக்கவும்":voiceState==="TRANSCRIBING"&&language==="ta"?"எழுத்தாக்குகிறது…":"தமிழில் பேசுங்கள்"}
                     </IconButton>
-                    <button className="english-voice" onClick={() => voice("en")} disabled={voiceState!=="IDLE"}>Speak English</button>
+                    <button className="english-voice" onClick={() => voice("en")} disabled={voiceState!=="IDLE"&&language!=="en"}>{voiceState==="RECORDING"&&language==="en"?"Stop & transcribe":voiceState==="TRANSCRIBING"&&language==="en"?"Transcribing…":"Speak English"}</button>
                   </div>
+                  <small className="voice-privacy">Cloud transcription · audio is not stored by RuralCare · review text before continuing</small>
                   <IconButton Icon={ArrowRight} onClick={start}>
                     {labels.next}
                   </IconButton>

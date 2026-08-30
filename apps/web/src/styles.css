@@ -1048,6 +1048,12 @@ nav button:hover {
   cursor: wait;
   opacity: .6;
 }
+.voice-privacy {
+  flex-basis: 100%;
+  color: #5f7772;
+  font-size: .72rem;
+  line-height: 1.4;
+}
 @keyframes voice-pulse {
   50% { box-shadow: 0 0 0 5px rgba(225, 167, 47, .16); }
 }
