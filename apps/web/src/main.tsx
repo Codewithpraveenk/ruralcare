@@ -59,6 +59,8 @@ type StaffCase = {
   need: string;
   urgency: "HIGH" | "MEDIUM" | "ROUTINE";
   facility: string;
+  sourceMode?: "CITIZEN" | "ASHA_ASSISTED";
+  rerouted?: boolean;
   status: "Created" | "Accepted" | "Arrived" | "Follow-up";
   followup: boolean;
 };
@@ -329,6 +331,7 @@ function StaffDashboard({ onBack }: { onBack: () => void }) {
                 <div>
                   <small>Recommended facility</small>
                   <b>{item.facility}</b>
+                  <small>{item.sourceMode === "CITIZEN" ? "Citizen" : "ASHA-assisted"}{item.rerouted ? " · Rerouted" : ""}</small>
                 </div>
                 <div>
                   <span
