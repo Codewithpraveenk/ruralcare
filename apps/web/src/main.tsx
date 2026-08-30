@@ -34,6 +34,7 @@ import {
   rankFacilities,
   type Assessment,
   type Facility,
+  type RouteDecision,
 } from "@ruralcare/shared";
 import { RouteMap } from "./RouteMap.tsx";
 import "./styles.css";
@@ -1555,6 +1556,10 @@ type FacilityCandidate = Facility & {
     note: string;
   };
   rerouteReason?: string | null;
+  rankingReasons?: string[];
+  availability?: "AVAILABLE" | "LIMITED" | "UNAVAILABLE";
+  availabilitySource?: "SIMULATED_FOR_PROTOTYPE";
+  recommendationStatus?: "RECOMMENDED" | "ALTERNATIVE" | "UNAVAILABLE_BUT_RELEVANT" | "NOT_SUITABLE";
 };
 const unavailableDemoFacility: Facility = withDistance({
   id: "gopalapuram-dispensary",
@@ -1577,6 +1582,7 @@ function App() {
   const [recommended, setRecommended] = useState<FacilityCandidate | null>(
     null,
   );
+  const [routeDecision, setRouteDecision] = useState<RouteDecision | null>(null);
   const [selected, setSelected] = useState<FacilityCandidate | null>(null);
   const [patientLabel, setPatientLabel] = useState("Demo patient");
   const [notice, setNotice] = useState("");
@@ -1687,17 +1693,11 @@ function App() {
     );
     setView("comparison");
     try {
-      const result = await request(
-        `/api/facilities?service=${assessment.service}`,
-      );
-      setCandidates(result.candidates);
-      setRecommended(
-        result.candidates.find(
-          (item: FacilityCandidate) => item.id === result.recommendedId,
-        ) ||
-          result.facilities[0] ||
-          null,
-      );
+      const result = await request("/api/routing", { method: "POST", body: JSON.stringify({ message, requestId: crypto.randomUUID() }) });
+      const decision = result.decision as RouteDecision;
+      setRouteDecision(decision);
+      setCandidates(decision.candidates as FacilityCandidate[]);
+      setRecommended((decision.candidates.find((item) => item.id === decision.selectedFacilityId) as FacilityCandidate | undefined) || null);
     } catch {
       setNotice("Showing cached synthetic facility comparison.");
     }
@@ -1712,6 +1712,13 @@ function App() {
       urgency: assessment.urgency,
       nextAction: assessment.nextAction,
       careNeed: assessment.symptoms.join(", "),
+      requestId: routeDecision?.requestId,
+      sourceMode: "ASHA_ASSISTED",
+      selectedFacilityType: selected.type,
+      routingExplanation: routeDecision?.explanation || selected.rerouteReason || "Selected based on service suitability, care level, distance, and prototype availability.",
+      rerouted: routeDecision?.rerouted || false,
+      previousFacility: routeDecision?.originalFacilityId !== selected.id ? candidates.find((item) => item.id === routeDecision?.originalFacilityId)?.name : undefined,
+      routingAudit: routeDecision?.audit,
     };
     try {
       const result = await request("/api/referrals", {
@@ -2110,8 +2117,8 @@ function App() {
                 </p>
                 <h1>Compare suitable public facilities.</h1>
                 <p>
-                  Every option below supports the required service. Availability
-                  determines whether it can be recommended today.
+                  Service suitability and care level are checked before distance.
+                  Availability is simulated for this prototype.
                 </p>
               </div>
               <div className="matching-chip">
@@ -2124,6 +2131,7 @@ function App() {
               service={assessment.service}
               onSelect={(facility) => setSelected(facility as FacilityCandidate)}
             />
+            {routeDecision && <p className="routing-explanation"><b>Why this route?</b> {routeDecision.explanation}</p>}
             <div className="facility-list">
               {candidates.map((facility, index) => (
                 <article
@@ -2150,7 +2158,7 @@ function App() {
                       {facility.distanceKm} km · {facility.address}
                     </p>
                     <div className="reason-list">
-                    {facility.reasons?.slice(0, 4).map((reason) => (
+                    {(facility.rankingReasons || facility.reasons)?.slice(0, 4).map((reason) => (
                         <span key={reason}>
                           <CheckCircle2 size={14} />
                           {reason}

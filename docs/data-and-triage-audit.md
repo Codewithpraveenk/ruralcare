@@ -34,3 +34,13 @@ Every non-routine result returns `triggeredRuleId`, finding, guideline reference
 - The map is an offline illustrative route map, not real navigation or ambulance dispatch.
 - The directory has no usable Tamil Nadu coordinate field in the retrieved version; only five separately sourced enrichments are map-capable.
 - No live government API, NIN integration, ABDM claim, diagnosis, prescribing or clinical decision support is present.
+
+## Care routing (Milestone 2)
+
+`packages/shared/src/routing.ts` is the deterministic matching engine. It maps the completed triage assessment to a small service plan: `PRIMARY_CARE`, `CHILD_HEALTH`, `MATERNITY`, or `EMERGENCY`; emergency requests require emergency-capable care. Facility care levels are conservative: AAM/dispensary/PHC are primary; CHC is primary/secondary; district hospital is secondary/emergency.
+
+The engine filters invalid coordinates, unsuitable service support, and facilities below the needed level before ranking. Configurable weights are service match **55** (+8 exact match), care-level match **30**, availability **20** (limited **8**), inferred-capability penalty **-4**, and distance **-1.2 per km**. Thus service/care suitability always outweighs proximity. Every result returns source provenance, simulated availability (`SIMULATED_FOR_PROTOTYPE`), human-readable reasons, and a recommendation status.
+
+If the highest-scoring suitable facility is unavailable, the decision preserves it as the original facility, selects the next suitable available option, and returns `REQUIRED_SERVICE_UNAVAILABLE` with an explanation. The referral stores the routing request ID, source mode, selected facility type, explanation, reroute flag, prior facility, and non-sensitive routing audit. The existing staff workflow reads the same referral table.
+
+RuralCare Connect is an AI-assisted care-navigation and triage-support prototype, not a medical diagnosis system. Real facility identity/location data is used where sourced. Current service availability, queues, beds and doctor availability are simulated for prototype demonstration.

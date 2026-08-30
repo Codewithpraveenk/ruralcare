@@ -2,7 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import { z } from "zod";
-import { assessNeed, rankFacilities, serviceCapacity, travelMinutes, type Facility, type Service } from "@ruralcare/shared";
+import { assessNeed, rankFacilities, routeFacilities, serviceCapacity, travelMinutes, type Facility, type Service } from "@ruralcare/shared";
 import { db, initializeDatabase } from "./db.ts";
 import { facilityProvenance } from "./facility-directory.ts";
 import { demoFacilities } from "./data.ts";
@@ -33,6 +33,14 @@ app.post("/api/triage", (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Please enter a short description of the health need." });
   return res.json({ assessment: assessNeed(parsed.data.message), source: "deterministic-safety-fallback" });
 });
+app.post("/api/routing", (req, res) => {
+  const parsed = z.object({ message: z.string().trim().min(2).max(600), requestId: z.string().trim().max(80).optional() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "A short care need is required for routing." });
+  const assessment = assessNeed(parsed.data.message);
+  if (assessment.urgency === "INSUFFICIENT_INFORMATION") return res.status(422).json({ assessment, error: "More safety information is needed before facility routing." });
+  const facilities = db.prepare("SELECT * FROM Facility").all().map((record) => asFacility(record as Record<string, unknown>));
+  return res.json({ assessment, decision: routeFacilities(facilities, assessment, parsed.data.requestId || crypto.randomUUID()) });
+});
 app.get("/api/facilities", async (req, res) => {
   const service = z.enum(["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH", "EMERGENCY", "TELECONSULT"]).catch("PRIMARY_CARE").parse(req.query.service);
   const facilities = db.prepare("SELECT * FROM Facility").all().map((record) => asFacility(record as Record<string, unknown>));
@@ -41,10 +49,10 @@ app.get("/api/facilities", async (req, res) => {
   res.json({ facilities: ranked, candidates: candidates.map((facility) => { const capacity = serviceCapacity(facility, service); const capability = facility.serviceSources?.[service] || "INFERRED_FROM_FACILITY_TYPE"; return { ...facility, travelMinutes: travelMinutes(facility), serviceCapacity: capacity, capabilitySource: capability, ranking: ranked.findIndex((item) => item.id === facility.id) + 1, rerouteReason: capacity.status === "UNAVAILABLE" ? `${serviceLabel(service)} is unavailable in this synthetic shift.` : null, reasons: [`${capability}: ${serviceLabel(service)}`, `${facility.type.replaceAll("_", " ")} level of care`, `${travelMinutes(facility)} min demo travel estimate`, `${capacity.status.toLowerCase()} capacity · ${capacity.estimatedWaitMinutes} min wait · ${capacity.availableBeds} beds` ] }; }), recommendedId: ranked[0]?.id ?? null, dataLabel: "Official directory identity; separately sourced coordinates; synthetic capacity/travel - verify before travel" });
 });
 app.post("/api/referrals", async (req, res) => {
-  const parsed = z.object({ patientLabel: z.string().trim().min(1).max(40), sourceFacility: z.string(), destinationFacility: z.string(), service: z.string(), urgency: z.string(), nextAction: z.string().max(200), careNeed: z.string().max(120).optional() }).safeParse(req.body);
+  const parsed = z.object({ patientLabel: z.string().trim().min(1).max(40), sourceFacility: z.string(), destinationFacility: z.string(), service: z.string(), urgency: z.string(), nextAction: z.string().max(200), careNeed: z.string().max(120).optional(), requestId: z.string().max(80).optional(), sourceMode: z.enum(["CITIZEN", "ASHA_ASSISTED"]).optional(), selectedFacilityType: z.string().max(40).optional(), routingExplanation: z.string().max(400).optional(), rerouted: z.boolean().optional(), previousFacility: z.string().max(160).optional(), routingAudit: z.record(z.unknown()).optional() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Referral details are incomplete." });
   const createdAt = new Date().toISOString(); const referral = { id: crypto.randomUUID(), ...parsed.data, demoId: `RCC-${Math.floor(1000 + Math.random() * 9000)}`, status: "CREATED", createdAt, updatedAt: createdAt, followUpDue: new Date(Date.now() + 86400000).toISOString(), careNeed: parsed.data.careNeed || serviceLabel(parsed.data.service) };
-  db.prepare("INSERT INTO Referral (id,patientLabel,sourceFacility,destinationFacility,service,urgency,status,nextAction,createdAt,demoId,careNeed,followUpDue,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").run(referral.id, referral.patientLabel, referral.sourceFacility, referral.destinationFacility, referral.service, referral.urgency, referral.status, referral.nextAction, referral.createdAt, referral.demoId, referral.careNeed, referral.followUpDue, referral.updatedAt);
+  db.prepare("INSERT INTO Referral (id,patientLabel,sourceFacility,destinationFacility,service,urgency,status,nextAction,createdAt,demoId,careNeed,followUpDue,updatedAt,requestId,sourceMode,selectedFacilityType,routingExplanation,rerouted,previousFacility,routingAudit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(referral.id, referral.patientLabel, referral.sourceFacility, referral.destinationFacility, referral.service, referral.urgency, referral.status, referral.nextAction, referral.createdAt, referral.demoId, referral.careNeed, referral.followUpDue, referral.updatedAt, parsed.data.requestId || null, parsed.data.sourceMode || "CITIZEN", parsed.data.selectedFacilityType || null, parsed.data.routingExplanation || null, Number(parsed.data.rerouted || false), parsed.data.previousFacility || null, JSON.stringify(parsed.data.routingAudit || {}));
   res.status(201).json({ referral });
 });
 app.get("/api/referrals", async (_req, res) => res.json({ referrals: db.prepare("SELECT * FROM Referral ORDER BY createdAt DESC LIMIT 20").all() }));

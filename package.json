@@ -7,7 +7,7 @@
     "dev": "npm run db:push && concurrently -n api,web -c blue,green \"npm --workspace @ruralcare/api run dev\" \"npm --workspace @ruralcare/web run dev\"",
     "db:push": "npm --workspace @ruralcare/api run db:push",
     "build": "npm --workspace @ruralcare/shared run check && npm --workspace @ruralcare/api run check && npm --workspace @ruralcare/web run build",
-    "test": "node --import tsx --test packages/shared/src/triage.test.ts apps/api/src/facility-directory.test.ts"
+    "test": "node --import tsx --test packages/shared/src/triage.test.ts packages/shared/src/routing.test.ts apps/api/src/facility-directory.test.ts"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
