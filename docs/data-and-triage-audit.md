@@ -61,3 +61,20 @@ RuralCare Connect is an AI-assisted care-navigation and triage-support prototype
 - There is no authenticated citizen identity, ASHA identity, government registry write-back, SMS delivery, ambulance dispatch or clinical follow-up integration.
 - Offline sync is single-device, best-effort prototype synchronization; conflict resolution across multiple devices is not implemented.
 - Service-gap summaries are operational signals only. They are not epidemiological surveillance, diagnosis, or evidence of facility performance.
+
+## Authentication and ownership (Milestone 4)
+
+- A signed JWT is held only in an HTTP-only, SameSite cookie and restored through `GET /api/auth/me`. Production deployment must set HTTPS and `COOKIE_SECURE=true`.
+- Passwords use bcrypt with cost 12. Public registration always creates a Citizen; ASHA and Staff are seeded prototype accounts.
+- Referrals store `ownerUserId`, `createdByUserId`, `assistedByUserId`, and `selectedFacilityId`. The API—not hidden UI controls—enforces Citizen ownership, ASHA linkage, and Staff facility scope.
+- Confirmed rerouting changes `selectedFacilityId`; the former facility remains in history but loses active Staff access.
+- Staff status transitions are allow-listed. Audit events store authenticated actor type/user ID and action, without passwords, tokens, or extra clinical narrative.
+- Capacity updates are restricted to the signed-in Staff member's assigned facility. Staff analytics return that facility's scoped cases and non-identifying gap aggregates.
+- IndexedDB workflow/actions and the Staff offline queue are namespaced by authenticated user ID. Expired sessions block synchronization until the matching account signs in again.
+
+### Authentication limitations
+
+- This is local SIH authentication, not government identity, ABHA, SSO, MFA, password reset, email/phone verification, account recovery, or production user administration.
+- The development fallback signing secret is intentionally unsuitable for deployment; a long random `AUTH_SECRET` is mandatory outside local use.
+- SQLite and a single API process are appropriate for the prototype, not production session revocation or horizontal scaling.
+- The Prisma development tool currently brings a reported `deepmerge-ts` stack-exhaustion advisory through `@prisma/config`; `npm audit fix` did not resolve it. Runtime requests use the built-in SQLite driver and do not accept object graphs through Prisma, but the toolchain dependency should be upgraded when a compatible patched Prisma release is selected.

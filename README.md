@@ -11,6 +11,18 @@ An offline-capable SIH demonstration app for routing a rural citizen or ASHA wor
 
 The first run creates a local SQLite database and seeds a Tamil Nadu demonstration set. The running prototype uses Node's built-in SQLite driver for reliable zero-setup local execution; `apps/api/prisma/schema.prisma` is included as the portable schema for a future Prisma/PostgreSQL deployment. Use the **Staff dashboard** link to see the operational view.
 
+## Demo authentication
+
+Milestone 4 uses a signed JWT inside an HTTP-only, SameSite cookie. Passwords are hashed with bcrypt (cost 12); neither hashes nor session tokens are exposed to the frontend. Copy `.env.example` to `.env`, set a long random `AUTH_SECRET`, and leave `COOKIE_SECURE=false` only for local HTTP development.
+
+| Role | Email | Password | Access |
+|---|---|---|---|
+| Citizen | `citizen.demo@ruralcare.local` | `RuralCare@2026` | Own care journeys, referrals, reroutes and follow-up |
+| ASHA | `asha.demo@ruralcare.local` | `RuralCare@2026` | Assisted journeys and only referrals created/linked by this ASHA |
+| Staff | `staff.demo@ruralcare.local` | `RuralCare@2026` | Referrals, status actions, capacity and aggregates for Public Health Centre only |
+
+Citizen registration never accepts a role and always creates a `CITIZEN`. ASHA and Staff accounts are seeded for the prototype; public privileged registration is disabled.
+
 ## Useful commands
 
 - `npm run dev` - initialize SQLite and start API + PWA

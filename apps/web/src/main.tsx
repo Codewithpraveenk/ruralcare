@@ -40,6 +40,7 @@ import {
   type Service,
 } from "@ruralcare/shared";
 import { RouteMap } from "./RouteMap.tsx";
+import { AuthProvider, useAuth, type AuthUser } from "./AuthContext.tsx";
 import { clearWorkflow, loadWorkflow, pendingActions, queueAction, removeAction, saveWorkflow, type SyncState } from "./offline-store.ts";
 import "./styles.css";
 
@@ -161,10 +162,11 @@ const localFacilities: Facility[] = [
 const queueKey = "ruralcare-referral-queue";
 async function request(path: string, init?: RequestInit) {
   const response = await fetch(path, {
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...init,
   });
-  if (!response.ok) {let message="Network unavailable";try{const problem=await response.json();message=problem.error||message;}catch{/* keep connectivity fallback */}throw new Error(message);}
+  if (!response.ok) {let message="Network unavailable";try{const problem=await response.json();message=problem.error||message;}catch{/* keep connectivity fallback */}if(response.status===401)window.dispatchEvent(new Event("ruralcare-auth-expired"));throw new Error(message);}
   return response.json();
 }
 function queueReferral(data: unknown) {
@@ -552,7 +554,7 @@ type Coordination = {
     updatedAt: string;
   }[];
 };
-const staffQueueKey = "ruralcare-staff-action-queue";
+const staffQueueKey = (userId:string) => `ruralcare:${userId}:staff-action-queue`;
 const fallbackCoordination: Coordination = {
   cases: seedCases.map((item, index) => ({
     id: `fallback-${index}`,
@@ -607,13 +609,14 @@ const fallbackCoordination: Coordination = {
     },
   ],
 };
-function queueStaffAction(id: string, status: string) {
-  const items = JSON.parse(localStorage.getItem(staffQueueKey) || "[]");
+function queueStaffAction(userId:string,id: string, status: string) {
+  const items = JSON.parse(localStorage.getItem(staffQueueKey(userId)) || "[]");
   items.push({ id, status });
-  localStorage.setItem(staffQueueKey, JSON.stringify(items));
+  localStorage.setItem(staffQueueKey(userId), JSON.stringify(items));
 }
-function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
-  const [data, setData] = useState<Coordination>(fallbackCoordination);
+function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
+  const {user}=useAuth();
+  const [data, setData] = useState<Coordination>({...fallbackCoordination,cases:[],totals:{incoming:0,urgent:0,pending:0,followups:0,rerouted:0,serviceGaps:0},demand:[],serviceAccess:[],recentGaps:[],capacity:[],activity:[]});
   const [filter, setFilter] = useState<"All" | "Priority" | "Follow-up">("All");
   const [alternatives, setAlternatives] = useState(false);
   const [message, setMessage] = useState("");
@@ -634,7 +637,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
   };
   const updateCapacity=async(availability:"AVAILABLE"|"LIMITED"|"UNAVAILABLE")=>{if(!capacityFacilityId)return;try{const result=await request(`/api/capacity/${capacityFacilityId}/${capacityService}`,{method:"PUT",body:JSON.stringify({availability})});setMessage(`${capacityService.replaceAll("_"," ")} marked ${availability.toLowerCase()} for the prototype. ${result.recommendations.length} referral reroute recommendation(s) created.`);await refresh();}catch{setMessage("Capacity changes require a connection and were not saved.");}};
   const syncActions = async () => {
-    const queued = JSON.parse(localStorage.getItem(staffQueueKey) || "[]");
+    const queued = JSON.parse(localStorage.getItem(staffQueueKey(user!.id)) || "[]");
     if (!queued.length) return;
     try {
       await Promise.all(
@@ -645,7 +648,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
           }),
         ),
       );
-      localStorage.removeItem(staffQueueKey);
+      localStorage.removeItem(staffQueueKey(user!.id));
       await refresh();
       setMessage("Queued staff updates synced.");
     } catch {
@@ -695,7 +698,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
       });
       await refresh();
     } catch {
-      queueStaffAction(item.id, next);
+      queueStaffAction(user!.id,item.id, next);
       setMessage(
         "Offline: staff update saved and will sync when the connection returns.",
       );
@@ -718,9 +721,9 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
             journey. No real patient data is shown.
           </p>
         </div>
-        <button className="back" onClick={onBack}>
+        {onBack&&<button className="back" onClick={onBack}>
           <ChevronLeft /> Citizen journey
-        </button>
+        </button>}
       </div>
       <div className="staff-context">
         <span>
@@ -832,6 +835,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
                   Icon={ArrowRight}
                   className="case-action"
                   onClick={() => advance(item)}
+                  disabled={item.status === "COMPLETED"}
                 >
                   {item.status === "COMPLETED" ? "Completed" : "Advance"}
                 </IconButton>
@@ -1600,6 +1604,7 @@ type PathView =
   | "reroute"
   | "referral"
   | "followup"
+  | "myreferrals"
   | "dashboard";
 type FacilityCandidate = Facility & {
   ranking?: number;
@@ -1631,10 +1636,15 @@ const unavailableDemoFacility: Facility = withDistance({
   capabilitySource: "INFERRED_FROM_FACILITY_TYPE",
   capacity: { PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "Unavailable in this synthetic demo shift" } },
 });
-function App() {
-  const [view, setView] = useState<PathView>("input");
+function LoginScreen(){const{login,register,error,clearError}=useAuth(),[mode,setMode]=useState<"login"|"register">("login"),[busy,setBusy]=useState(false),[identifier,setIdentifier]=useState("citizen.demo@ruralcare.local"),[password,setPassword]=useState("RuralCare@2026"),[name,setName]=useState(""),[confirmPassword,setConfirmPassword]=useState("");const submit=async()=>{setBusy(true);try{if(mode==="login")await login(identifier,password);else await register({name,email:identifier,password,confirmPassword});}catch{/* AuthContext exposes a safe message */}finally{setBusy(false);}};const demo=(role:"CITIZEN"|"ASHA"|"STAFF")=>{setMode("login");setIdentifier(`${role.toLowerCase()}.demo@ruralcare.local`);setPassword("RuralCare@2026");clearError();};return <main className="auth-page"><section className="auth-brand"><HeartPulse/><p className="kicker">RURALCARE CONNECT · PROTECTED PROTOTYPE</p><h1>Secure continuity from need to public care.</h1><p>Citizen cases, ASHA-assisted referrals, and facility workspaces are separated by authenticated role and ownership.</p></section><section className="auth-card"><div className="auth-tabs"><button className={mode==="login"?"active":""} onClick={()=>{setMode("login");clearError();}}>Sign in</button><button className={mode==="register"?"active":""} onClick={()=>{setMode("register");clearError();}}>Citizen registration</button></div><h2>{mode==="login"?"Welcome back":"Create a citizen account"}</h2>{mode==="register"&&<label>Name<input value={name} onChange={event=>setName(event.target.value)} autoComplete="name"/></label>}<label>Email or phone<input value={identifier} onChange={event=>setIdentifier(event.target.value)} autoComplete="username"/></label><label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} autoComplete={mode==="login"?"current-password":"new-password"}/></label>{mode==="register"&&<label>Confirm password<input type="password" value={confirmPassword} onChange={event=>setConfirmPassword(event.target.value)} autoComplete="new-password"/></label>}{error&&<div className="auth-error">{error}</div>}<button className="auth-submit" disabled={busy} onClick={submit}>{busy?"Please wait…":mode==="login"?"Sign in":"Register securely"}</button>{mode==="login"&&<div className="demo-logins"><span>Judge demo accounts</span><div><button onClick={()=>demo("CITIZEN")}>Citizen</button><button onClick={()=>demo("ASHA")}>ASHA</button><button onClick={()=>demo("STAFF")}>PHC Staff</button></div><small>Password: RuralCare@2026</small></div>}<p className="auth-note">Prototype accounts only · no government identity or ABHA claim</p></section></main>}
+
+function AuthenticatedApp(){const{user,loading}=useAuth();if(loading)return <main className="auth-loading"><HeartPulse/><b>Restoring secure session…</b></main>;if(!user)return <LoginScreen/>;return <App user={user}/>;}
+
+function App({user}:{user:AuthUser}) {
+  const {logout}=useAuth();
+  const [view, setView] = useState<PathView>(user.role==="STAFF"?"dashboard":"input");
   const [language, setLanguage] = useState<"en" | "ta">("en");
-  const [sourceMode, setSourceMode] = useState<"CITIZEN" | "ASHA_ASSISTED">("CITIZEN");
+  const [sourceMode, setSourceMode] = useState<"CITIZEN" | "ASHA_ASSISTED">(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");
   const [syncState, setSyncState] = useState<SyncState>("SYNCED");
   const [workflowLoaded, setWorkflowLoaded] = useState(false);
   const [message, setMessage] = useState("");
@@ -1653,6 +1663,7 @@ function App() {
   const recordingTimerRef = useRef<number | null>(null);
   const [patientLabel, setPatientLabel] = useState("Demo patient");
   const [notice, setNotice] = useState("");
+  const [myReferrals,setMyReferrals]=useState<Array<Record<string,any>>>([]);
   const [online, setOnline] = useState(navigator.onLine);
   const labels =
     language === "ta"
@@ -1674,6 +1685,7 @@ function App() {
     reroute: 3,
     referral: 4,
     followup: 4,
+    myreferrals: 4,
     dashboard: 0,
   };
   useEffect(() => {
@@ -1686,27 +1698,9 @@ function App() {
       removeEventListener("offline", off);
     };
   }, []);
-  useEffect(()=>{loadWorkflow<any>().then(saved=>{if(saved){setLanguage(saved.language||"en");setSourceMode(saved.sourceMode||"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[]);
-  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow({language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
-  useEffect(()=>{if(!online)return;setSyncState("SYNCING");pendingActions().then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch{setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online]);
-  useEffect(() => {
-    if (!online) return;
-    const queued = JSON.parse(localStorage.getItem(queueKey) || "[]");
-    if (!queued.length) return;
-    Promise.all(
-      queued.map((item: unknown) =>
-        request("/api/referrals", {
-          method: "POST",
-          body: JSON.stringify(item),
-        }),
-      ),
-    )
-      .then(() => {
-        localStorage.removeItem(queueKey);
-        setNotice("Queued continuity pass synced to Staff View.");
-      })
-      .catch(() => undefined);
-  }, [online]);
+  useEffect(()=>{loadWorkflow<any>(user.id).then(saved=>{if(saved){setLanguage(saved.language||"en");setSourceMode(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(user.role==="STAFF"?"dashboard":saved.view==="dashboard"?"input":saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[user.id]);
+  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow(user.id,{language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,user.id,language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
+  useEffect(()=>{if(!online||user.role==="STAFF")return;setSyncState("SYNCING");pendingActions(user.id).then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch(error:any){if(String(error?.message).includes("sign in"))setNotice("Please sign in again before syncing this account's offline work.");setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online,user.id,user.role]);
   async function start() {
     if (!message.trim())
       return setNotice("Please describe the healthcare need first.");
@@ -1766,6 +1760,7 @@ function App() {
       patientLabel,
       sourceFacility: sourceMode === "ASHA_ASSISTED" ? "ASHA-assisted pathway" : "Citizen pathway",
       destinationFacility: selected.name,
+      selectedFacilityId: selected.id,
       service: assessment.service,
       urgency: assessment.urgency,
       nextAction: assessment.nextAction,
@@ -1788,7 +1783,7 @@ function App() {
       );
       setCurrentReferral(result.referral); setSyncState("SYNCED");
     } catch {
-      await queueAction({id:clientId,path:"/api/referrals",method:"POST",body});
+      await queueAction(user.id,{id:clientId,path:"/api/referrals",method:"POST",body});
       setCurrentReferral({id:clientId,demoId:`LOCAL-${clientId.slice(0,6).toUpperCase()}`,status:"CREATED",...body}); setSyncState("PENDING_SYNC");
       setNotice("Offline: continuity pass safely queued on this device.");
     }
@@ -1796,8 +1791,9 @@ function App() {
   }
   async function refreshReferral(){if(!currentReferral||String(currentReferral.id).startsWith("LOCAL-"))return setNotice("This continuity pass is waiting to sync.");try{const result=await request(`/api/referrals/${currentReferral.id}`);setCurrentReferral(result.referral);setNotice("Latest staff status loaded.");}catch{setNotice("Could not refresh while offline.");}}
   async function openCareJourney(){if(!currentReferral){setView("input");return;}setView("followup");if(online)await refreshReferral();}
+  async function openMyReferrals(){setView("myreferrals");try{const result=await request("/api/referrals");setMyReferrals(result.referrals||[]);}catch(error:any){setNotice(error?.message||"Could not load this account's referrals.");}}
   async function confirmReroute(){if(!currentReferral)return;try{const result=await request(`/api/referrals/${currentReferral.id}/reroute/confirm`,{method:"POST"});setCurrentReferral(result.referral);setNotice("Alternative public facility confirmed. Referral history was preserved.");}catch{setNotice("Reroute confirmation needs a connection. Your original destination is unchanged.");}}
-  async function submitFollowUp(outcome:"CARE_REACHED"|"COULD_NOT_REACH"|"SERVICE_NOT_AVAILABLE"|"FOLLOW_UP_NEEDED") {if(!currentReferral)return;const clientId=crypto.randomUUID(),body={clientId,outcome,note:followUpNote,sourceMode};const path=`/api/referrals/${currentReferral.id}/follow-up`;try{const result=await request(path,{method:"POST",body:JSON.stringify(body)});setCurrentReferral(result.referral?.referral||currentReferral);setSyncState("SYNCED");setNotice(outcome==="CARE_REACHED"?"Care reached and continuity completed.":"Follow-up outcome shared with Staff View.");}catch{await queueAction({id:clientId,path,method:"POST",body});setSyncState("PENDING_SYNC");setNotice("Follow-up saved offline and waiting to sync.");}}
+  async function submitFollowUp(outcome:"CARE_REACHED"|"COULD_NOT_REACH"|"SERVICE_NOT_AVAILABLE"|"FOLLOW_UP_NEEDED") {if(!currentReferral)return;const clientId=crypto.randomUUID(),body={clientId,outcome,note:followUpNote,sourceMode};const path=`/api/referrals/${currentReferral.id}/follow-up`;try{const result=await request(path,{method:"POST",body:JSON.stringify(body)});setCurrentReferral(result.referral?.referral||currentReferral);setSyncState("SYNCED");setNotice(outcome==="CARE_REACHED"?"Care reached and continuity completed.":"Follow-up outcome shared with Staff View.");}catch{await queueAction(user.id,{id:clientId,path,method:"POST",body});setSyncState("PENDING_SYNC");setNotice("Follow-up saved offline and waiting to sync for this signed-in account.");}}
   useEffect(()=>{if(view!=="followup"||!currentReferral||!online)return;const timer=window.setInterval(()=>{refreshReferral();},10000);return()=>window.clearInterval(timer);},[view,currentReferral?.id,online]);
   async function transcribeRecording(blob:Blob,spokenLanguage:"ta"|"en") {setVoiceState("TRANSCRIBING");setNotice(spokenLanguage==="ta"?"தமிழ் குரலை எழுத்தாக மாற்றுகிறோம்…":"Converting speech to text…");try{const audioBase64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});const result=await request("/api/transcribe",{method:"POST",body:JSON.stringify({audioBase64,mimeType:blob.type||"audio/webm",language:spokenLanguage})});setMessage(previous=>`${previous.trim()}${previous.trim()?" ":""}${result.text}`.trim());setNotice(spokenLanguage==="ta"?"தமிழ் உரை பெட்டியில் சேர்க்கப்பட்டது. சரிபார்த்து தொடரவும்.":"Transcript added. Review it, then continue.");}catch(error:any){setNotice(error?.message||"Audio could not be transcribed. Check the API key and connectivity.");}finally{setVoiceState("IDLE");}}
   async function voice(spokenLanguage:"ta"|"en"=language){if(voiceState==="RECORDING"){if(recordingTimerRef.current)window.clearTimeout(recordingTimerRef.current);recorderRef.current?.stop();return;}if(voiceState!=="IDLE")return;setLanguage(spokenLanguage);if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined")return setNotice("Audio recording is unavailable in this browser. Please type the need.");try{const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const preferred=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus"].find(type=>MediaRecorder.isTypeSupported(type));const recorder=new MediaRecorder(stream,preferred?{mimeType:preferred}:undefined),chunks:BlobPart[]=[];recorderRef.current=recorder;recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};recorder.onstop=()=>{stream.getTracks().forEach(track=>track.stop());recorderRef.current=null;const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});if(blob.size<500){setVoiceState("IDLE");setNotice("No usable speech was recorded. Tap once, speak, then tap Stop.");return;}void transcribeRecording(blob,spokenLanguage);};recorder.onerror=()=>{stream.getTracks().forEach(track=>track.stop());setVoiceState("IDLE");setNotice("The microphone recording failed. Check browser microphone permission.");};recorder.start(250);setVoiceState("RECORDING");setNotice(spokenLanguage==="ta"?"பதிவு செய்கிறது… பேசி முடித்ததும் நிறுத்தவும் அழுத்தவும்.":"Recording… tap Stop when you finish speaking.");recordingTimerRef.current=window.setTimeout(()=>{if(recorder.state==="recording")recorder.stop();},12000);}catch(error:any){setVoiceState("IDLE");setNotice(error?.name==="NotAllowedError"?"Microphone permission was blocked. Allow it in the address bar, then try again.":"Could not open the microphone. Check that it is connected and not used by another app.");}}
@@ -1817,15 +1813,18 @@ function App() {
           </div>
         </div>
         <nav>
-          <button
+          {user.role!=="STAFF"&&<button
             className={view !== "dashboard" ? "active" : ""}
             onClick={openCareJourney}
           >
             <Sparkles /> Care pathway
-          </button>
-          <button onClick={() => setView("dashboard")}>
+          </button>}
+          {user.role!=="STAFF"&&<button onClick={openMyReferrals}>
+            <ClipboardPlus /> My referrals
+          </button>}
+          {user.role==="STAFF"&&<button className="active" onClick={() => setView("dashboard")}>
             <UsersRound /> Staff view
-          </button>
+          </button>}
         </nav>
         <div className="aside-card">
           <div className="signal">
@@ -1837,10 +1836,11 @@ function App() {
         <div className="aside-bottom">
           <ShieldCheck size={18} />
           <p>
-            <b>Safety bounded</b>
+            <b>{user.name}</b>
             <br />
-            Not a diagnosis tool
+            {user.role.replaceAll("_"," ")}
           </p>
+          <button className="logout-button" onClick={()=>logout()}>Logout</button>
         </div>
       </aside>
       <main>
@@ -1916,8 +1916,8 @@ function App() {
                   <span>Tamil, English, or mixed language</span>
                 </label>
                 <div className="mode-choice" aria-label="Who is using RuralCare">
-                  <button className={sourceMode === "CITIZEN" ? "selected" : ""} onClick={() => setSourceMode("CITIZEN")}><UsersRound size={17}/><span><b>Citizen / family</b><small>Using RuralCare for myself or family</small></span></button>
-                  <button className={sourceMode === "ASHA_ASSISTED" ? "selected" : ""} onClick={() => setSourceMode("ASHA_ASSISTED")}><Stethoscope size={17}/><span><b>ASHA-assisted</b><small>Frontline worker assisting a citizen</small></span></button>
+                  <button disabled={user.role!=="CITIZEN"} className={sourceMode === "CITIZEN" ? "selected" : ""}><UsersRound size={17}/><span><b>Citizen / family</b><small>Signed in as Citizen</small></span></button>
+                  <button disabled={user.role!=="ASHA"} className={sourceMode === "ASHA_ASSISTED" ? "selected" : ""}><Stethoscope size={17}/><span><b>ASHA-assisted</b><small>Signed in as ASHA</small></span></button>
                 </div>
                 <textarea
                   value={message}
@@ -2512,8 +2512,9 @@ function App() {
             </div>
           </section>
         )}
-        {view === "dashboard" && (
-          <LiveStaffDashboard onBack={openCareJourney} />
+        {view === "myreferrals" && <section className="flow-card pathway-card my-referrals"><div className="flow-title"><p className="kicker">ACCOUNT-OWNED CONTINUITY</p><h1>{user.role==="ASHA"?"My assisted referrals":"My referrals"}</h1><p>Only referrals owned by or explicitly linked to this signed-in account are returned by the API.</p></div>{myReferrals.length===0?<div className="empty-referrals"><ClipboardPlus/><b>No referrals for this account yet.</b><button onClick={()=>setView("input")}>Start a care journey</button></div>:<div className="referral-account-list">{myReferrals.map(item=><article key={item.id}><div><span>{item.demoId}</span><b>{item.careNeed||item.service?.replaceAll("_"," ")}</b><small>{item.sourceMode?.replaceAll("_"," ")} · {item.destinationFacility}</small></div><strong>{item.status?.replaceAll("_"," ")}</strong><button onClick={()=>{setCurrentReferral(item);setView("followup");}}>Open</button></article>)}</div>}<button className="back text-button" onClick={openCareJourney}><ChevronLeft/> Back to care journey</button></section>}
+        {view === "dashboard" && user.role==="STAFF" && (
+          <LiveStaffDashboard />
         )}
       </main>
     </div>
@@ -2526,4 +2527,4 @@ declare global {
     webkitSpeechRecognition?: any;
   }
 }
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<AuthProvider><AuthenticatedApp/></AuthProvider>);

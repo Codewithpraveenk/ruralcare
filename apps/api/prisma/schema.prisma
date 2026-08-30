@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./ruralcare.db"
+  url      = env("DATABASE_URL")
 }
 
 model Facility {
@@ -21,6 +21,18 @@ model Facility {
   longitude Float
 }
 
+model User {
+  id String @id
+  name String
+  email String? @unique
+  phone String? @unique
+  passwordHash String
+  role String
+  facilityId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Referral {
   id String @id @default(cuid())
   patientLabel String
@@ -35,4 +47,12 @@ model Referral {
   careNeed String?
   followUpDue DateTime?
   updatedAt DateTime?
+  clientId String? @unique
+  sourceMode String?
+  selectedFacilityId String?
+  ownerUserId String?
+  createdByUserId String?
+  assistedByUserId String?
+  rerouteStatus String?
+  recommendedFacilityId String?
 }
