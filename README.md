@@ -19,13 +19,15 @@ Milestone 4 uses a signed JWT inside an HTTP-only, SameSite cookie. Passwords ar
 |---|---|---|---|
 | Citizen | `citizen.demo@ruralcare.local` | `RuralCare@2026` | Own care journeys, referrals, reroutes and follow-up |
 | ASHA | `asha.demo@ruralcare.local` | `RuralCare@2026` | Assisted journeys and only referrals created/linked by this ASHA |
+| Doctor | `doctor.demo@ruralcare.local` | `RuralCare@2026` | Facility-assigned referral queue, case details, timeline and status workflow |
+| Facility Admin | `admin.demo@ruralcare.local` | `RuralCare@2026` | Facility coordination plus clearly labelled simulated capacity controls |
 | Staff | `staff.demo@ruralcare.local` | `RuralCare@2026` | Referrals, status actions, capacity and aggregates for Public Health Centre only |
 
-Citizen registration never accepts a role and always creates a `CITIZEN`. ASHA and Staff accounts are seeded for the prototype; public privileged registration is disabled.
+Citizen registration never accepts a role and always creates a `CITIZEN`. ASHA, Doctor, Facility Admin, and compatibility Staff accounts are seeded for the prototype; public privileged registration is disabled. The login page separates Patient, ASHA, and Doctor/Facility portals before credentials are entered. Patients land on a dedicated home page with new-care, active-journey, and referral-history entry points.
 
 ## Useful commands
 
-- `npm run dev` - initialize SQLite and start API + PWA
+- `npm run dev` - initialize SQLite and start API + PWA on fixed ports 8787 and 5173
 - `npm test` - safety and facility-matching unit tests
 - `npm run build` - type-check and create the production web build
 
@@ -44,6 +46,8 @@ The default extraction model is configured by `OPENAI_EXTRACTION_MODEL` (current
 On the follow-up screen, refresh the shared referral status or report whether care was reached. Outcomes such as “service not available” become non-identifying service-gap events in Staff View. To demonstrate resilience, switch offline in browser developer tools: the current journey, referral and follow-up actions persist in IndexedDB and sync idempotently when connectivity returns.
 
 Staff View includes real counts derived from the local prototype database, recent service gaps, referral history, and a clearly labelled **prototype capacity control**. Making a service unavailable creates a reroute recommendation for affected referrals; it never silently replaces a citizen's confirmed destination.
+
+The Doctor workspace is deliberately separate from capacity administration. Doctors can inspect assigned referral details, routing rationale and continuity history, and advance valid referral states. Facility Admin accounts own simulated capacity controls. Neither role diagnoses or prescribes in this prototype.
 
 ## Facility data provenance
 

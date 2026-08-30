@@ -29,6 +29,8 @@ model User {
   passwordHash String
   role String
   facilityId String?
+  preferredLanguage String @default("en")
+  village String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

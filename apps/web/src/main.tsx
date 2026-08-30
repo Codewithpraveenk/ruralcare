@@ -629,11 +629,12 @@ function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
   const [capacityFacilities, setCapacityFacilities] = useState<Facility[]>([]);
   const [capacityFacilityId, setCapacityFacilityId] = useState("");
   const [capacityService, setCapacityService] = useState<Service>("PRIMARY_CARE");
+  const [selectedDetail,setSelectedDetail]=useState<any|null>(null);
   const refresh = async () => {
     try {
       const result = await request("/api/coordination");
       setData(result);
-      const capacityResult=await request("/api/capacity");setCapacityFacilities(capacityResult.facilities);if(!capacityFacilityId&&capacityResult.facilities[0])setCapacityFacilityId(capacityResult.facilities[0].id);
+      if(user?.role!=="DOCTOR"){const capacityResult=await request("/api/capacity");setCapacityFacilities(capacityResult.facilities);if(!capacityFacilityId&&capacityResult.facilities[0])setCapacityFacilityId(capacityResult.facilities[0].id);}
       setMessage("");
     } catch {
       setMessage(
@@ -642,6 +643,7 @@ function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
     }
   };
   const updateCapacity=async(availability:"AVAILABLE"|"LIMITED"|"UNAVAILABLE")=>{if(!capacityFacilityId)return;try{const result=await request(`/api/capacity/${capacityFacilityId}/${capacityService}`,{method:"PUT",body:JSON.stringify({availability})});setMessage(`${capacityService.replaceAll("_"," ")} marked ${availability.toLowerCase()} for the prototype. ${result.recommendations.length} referral reroute recommendation(s) created.`);await refresh();}catch{setMessage("Capacity changes require a connection and were not saved.");}};
+  const openCase=async(item:CoordinationCase)=>{try{const result=await request(`/api/referrals/${item.id}`);setSelectedDetail(result);}catch(error:any){setMessage(error?.message||"Could not open this assigned referral.");}};
   const syncActions = async () => {
     const queued = JSON.parse(localStorage.getItem(staffQueueKey(user!.id)) || "[]");
     if (!queued.length) return;
@@ -720,8 +722,8 @@ function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
     <section className="staff-workspace">
       <div className="staff-heading">
         <div>
-          <p className="kicker">ASHA / PHC COORDINATION WORKSPACE</p>
-          <h1>Today’s care pathways.</h1>
+          <p className="kicker">{user?.role==="DOCTOR"?"DOCTOR REFERRAL WORKSPACE":"FACILITY COORDINATION WORKSPACE"}</p>
+          <h1>{user?.role==="DOCTOR"?"Assigned patients and care hand-offs.":"Today’s care pathways."}</h1>
           <p>
             Connected to the same local synthetic records created in the citizen
             journey. No real patient data is shown.
@@ -787,7 +789,7 @@ function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
         <article><span className="summary-icon gold"><Route /></span><div><b>{data.totals.rerouted}</b><small>Rerouted cases</small></div><em>Stored decisions</em></article>
         <article><span className="summary-icon red"><CircleAlert /></span><div><b>{data.totals.serviceGaps}</b><small>Service-gap events</small></div><em>Access feedback</em></article>
       </div>
-      <article className="capacity-control"><div><p className="eyebrow">PROTOTYPE CAPACITY CONTROL</p><h2>Change simulated service availability</h2><small>Not live government data. Changes persist and use the real routing engine.</small></div><select value={capacityFacilityId} onChange={event=>setCapacityFacilityId(event.target.value)}>{capacityFacilities.map(facility=><option key={facility.id} value={facility.id}>{facility.name}</option>)}</select><select value={capacityService} onChange={event=>setCapacityService(event.target.value as Service)}>{(["PRIMARY_CARE","CHILD_HEALTH","MATERNITY","EMERGENCY"] as Service[]).map(service=><option key={service} value={service}>{service.replaceAll("_"," ")}</option>)}</select><div><button onClick={()=>updateCapacity("AVAILABLE")}>Available</button><button onClick={()=>updateCapacity("LIMITED")}>Limited</button><button onClick={()=>updateCapacity("UNAVAILABLE")}>Unavailable</button></div></article>
+      {user?.role!=="DOCTOR"&&<article className="capacity-control"><div><p className="eyebrow">PROTOTYPE CAPACITY CONTROL</p><h2>Change simulated service availability</h2><small>Not live government data. Changes persist and use the real routing engine.</small></div><select value={capacityFacilityId} onChange={event=>setCapacityFacilityId(event.target.value)}>{capacityFacilities.map(facility=><option key={facility.id} value={facility.id}>{facility.name}</option>)}</select><select value={capacityService} onChange={event=>setCapacityService(event.target.value as Service)}>{(["PRIMARY_CARE","CHILD_HEALTH","MATERNITY","EMERGENCY"] as Service[]).map(service=><option key={service} value={service}>{service.replaceAll("_"," ")}</option>)}</select><div><button onClick={()=>updateCapacity("AVAILABLE")}>Available</button><button onClick={()=>updateCapacity("LIMITED")}>Limited</button><button onClick={()=>updateCapacity("UNAVAILABLE")}>Unavailable</button></div></article>}
       <div className="staff-grid">
         <article className="active-cases">
           <div className="panel-title">
@@ -837,14 +839,7 @@ function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
                     {item.stage}
                   </span>
                 </div>
-                <IconButton
-                  Icon={ArrowRight}
-                  className="case-action"
-                  onClick={() => advance(item)}
-                  disabled={item.status === "COMPLETED"}
-                >
-                  {item.status === "COMPLETED" ? "Completed" : "Advance"}
-                </IconButton>
+                <div className="case-buttons"><button onClick={()=>openCase(item)}>Review</button><IconButton Icon={ArrowRight} className="case-action" onClick={() => advance(item)} disabled={item.status === "COMPLETED"}>{item.status === "COMPLETED" ? "Completed" : "Advance"}</IconButton></div>
               </div>
             ))}
           </div>
@@ -890,6 +885,7 @@ function LiveStaffDashboard({ onBack }: { onBack?: () => void }) {
           </aside>
         )}
       </div>
+      {selectedDetail&&<div className="case-detail-backdrop" role="presentation" onClick={()=>setSelectedDetail(null)}><section className="case-detail-panel" role="dialog" aria-modal="true" aria-label="Referral details" onClick={event=>event.stopPropagation()}><button className="case-detail-close" onClick={()=>setSelectedDetail(null)}>×</button><p className="kicker">ASSIGNED REFERRAL</p><h2>{selectedDetail.referral.demoId}</h2><div className="case-detail-summary"><div><span>Patient</span><b>{selectedDetail.referral.patientLabel}</b></div><div><span>Urgency</span><b>{selectedDetail.referral.urgency}</b></div><div><span>Care need</span><b>{selectedDetail.referral.careNeed||selectedDetail.referral.service?.replaceAll("_"," ")}</b></div><div><span>Required service</span><b>{selectedDetail.referral.service?.replaceAll("_"," ")}</b></div><div><span>Assigned facility</span><b>{selectedDetail.referral.destinationFacility}</b></div><div><span>Status</span><b>{selectedDetail.referral.status?.replaceAll("_"," ")}</b></div></div><article className="routing-rationale"><b>Why this pathway</b><p>{selectedDetail.referral.routingExplanation||"Matched to the required public service and the prototype availability state."}</p></article><div className="case-history"><h3>Referral continuity</h3>{selectedDetail.history?.map((event:any)=><div key={event.id}><BadgeCheck/><span><b>{event.toStatus.replaceAll("_"," ")}</b><small>{event.action?.replaceAll("_"," ")} · {new Date(event.timestamp).toLocaleString()}</small></span></div>)}</div><p className="doctor-boundary"><ShieldCheck/> This workspace coordinates an assigned referral. It does not diagnose or prescribe.</p></section></div>}
       <div className="pipeline-panel">
         <div className="panel-title">
           <div>
@@ -1601,6 +1597,7 @@ function LegacyApp() {
   );
 }
 type PathView =
+  | "home"
   | "input"
   | "understanding"
   | "urgency"
@@ -1642,13 +1639,35 @@ const unavailableDemoFacility: Facility = withDistance({
   capabilitySource: "INFERRED_FROM_FACILITY_TYPE",
   capacity: { PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "Unavailable in this synthetic demo shift" } },
 });
-function LoginScreen(){const{login,register,error,clearError}=useAuth(),[mode,setMode]=useState<"login"|"register">("login"),[busy,setBusy]=useState(false),[identifier,setIdentifier]=useState("citizen.demo@ruralcare.local"),[password,setPassword]=useState("RuralCare@2026"),[name,setName]=useState(""),[confirmPassword,setConfirmPassword]=useState("");const submit=async()=>{setBusy(true);try{if(mode==="login")await login(identifier,password);else await register({name,email:identifier,password,confirmPassword});}catch{/* AuthContext exposes a safe message */}finally{setBusy(false);}};const demo=(role:"CITIZEN"|"ASHA"|"STAFF")=>{setMode("login");setIdentifier(`${role.toLowerCase()}.demo@ruralcare.local`);setPassword("RuralCare@2026");clearError();};return <main className="auth-page"><section className="auth-brand"><HeartPulse/><p className="kicker">RURALCARE CONNECT · PROTECTED PROTOTYPE</p><h1>Secure continuity from need to public care.</h1><p>Citizen cases, ASHA-assisted referrals, and facility workspaces are separated by authenticated role and ownership.</p></section><section className="auth-card"><div className="auth-tabs"><button className={mode==="login"?"active":""} onClick={()=>{setMode("login");clearError();}}>Sign in</button><button className={mode==="register"?"active":""} onClick={()=>{setMode("register");clearError();}}>Citizen registration</button></div><h2>{mode==="login"?"Welcome back":"Create a citizen account"}</h2>{mode==="register"&&<label>Name<input value={name} onChange={event=>setName(event.target.value)} autoComplete="name"/></label>}<label>Email or phone<input value={identifier} onChange={event=>setIdentifier(event.target.value)} autoComplete="username"/></label><label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} autoComplete={mode==="login"?"current-password":"new-password"}/></label>{mode==="register"&&<label>Confirm password<input type="password" value={confirmPassword} onChange={event=>setConfirmPassword(event.target.value)} autoComplete="new-password"/></label>}{error&&<div className="auth-error">{error}</div>}<button className="auth-submit" disabled={busy} onClick={submit}>{busy?"Please wait…":mode==="login"?"Sign in":"Register securely"}</button>{mode==="login"&&<div className="demo-logins"><span>Judge demo accounts</span><div><button onClick={()=>demo("CITIZEN")}>Citizen</button><button onClick={()=>demo("ASHA")}>ASHA</button><button onClick={()=>demo("STAFF")}>PHC Staff</button></div><small>Password: RuralCare@2026</small></div>}<p className="auth-note">Prototype accounts only · no government identity or ABHA claim</p></section></main>}
+function LoginScreen(){
+  const{login,register,error,clearError}=useAuth();
+  const[portal,setPortal]=useState<"PATIENT"|"ASHA"|"CLINICAL">("PATIENT"),[mode,setMode]=useState<"login"|"register">("login"),[busy,setBusy]=useState(false),[identifier,setIdentifier]=useState("citizen.demo@ruralcare.local"),[password,setPassword]=useState("RuralCare@2026"),[name,setName]=useState(""),[confirmPassword,setConfirmPassword]=useState("");
+  const choose=(next:"PATIENT"|"ASHA"|"CLINICAL")=>{setPortal(next);setMode("login");setIdentifier(next==="PATIENT"?"citizen.demo@ruralcare.local":next==="ASHA"?"asha.demo@ruralcare.local":"doctor.demo@ruralcare.local");setPassword("RuralCare@2026");clearError();};
+  const submit=async()=>{setBusy(true);try{if(mode==="login")await login(identifier,password);else await register({name,email:identifier,password,confirmPassword});}catch{/* safe message is exposed by AuthContext */}finally{setBusy(false);}};
+  const title=portal==="PATIENT"?"Patient & family portal":portal==="ASHA"?"ASHA assisted-care portal":"Doctor & facility portal";
+  return <main className="portal-auth-page">
+    <section className="portal-auth-brand"><div className="auth-logo"><HeartPulse/><b>RuralCare <span>Connect</span></b></div><div><p className="kicker">PUBLIC-CARE NAVIGATION · PROTECTED PROTOTYPE</p><h1>One care story, safely carried forward.</h1><p>Speak or type a health need, reach a suitable public facility, and preserve referral continuity from patient to care team.</p></div><div className="auth-trust"><span><ShieldCheck/> Not medical diagnosis</span><span><Languages/> Tamil · English · Tanglish</span><span><CloudOff/> Offline-safe pathway</span></div></section>
+    <section className="portal-auth-panel"><div className="portal-choice" aria-label="Choose sign in portal"><button className={portal==="PATIENT"?"selected":""} onClick={()=>choose("PATIENT")}><UsersRound/><span><b>Patient / Family</b><small>Start and track my care journey</small></span></button><button className={portal==="ASHA"?"selected":""} onClick={()=>choose("ASHA")}><Stethoscope/><span><b>ASHA Worker</b><small>Assist a citizen safely</small></span></button><button className={portal==="CLINICAL"?"selected":""} onClick={()=>choose("CLINICAL")}><Hospital/><span><b>Doctor / Facility</b><small>Review assigned referrals</small></span></button></div>
+      <div className="portal-form"><p className="kicker">{portal} ACCESS</p><h2>{mode==="register"?"Create your patient account":title}</h2><p>{portal==="PATIENT"?"Your referrals remain visible only to your account and the receiving facility.":portal==="ASHA"?"Use your assigned frontline-worker account.":"Use your facility-issued doctor or administrator account."}</p>
+        {portal==="PATIENT"&&<div className="auth-tabs"><button className={mode==="login"?"active":""} onClick={()=>{setMode("login");clearError();}}>Patient sign in</button><button className={mode==="register"?"active":""} onClick={()=>{setMode("register");setIdentifier("");setPassword("");clearError();}}>Create account</button></div>}
+        {mode==="register"&&<label>Patient name<input value={name} onChange={event=>setName(event.target.value)} autoComplete="name" placeholder="Your name"/></label>}
+        <label>Email or phone<input value={identifier} onChange={event=>setIdentifier(event.target.value)} autoComplete="username" placeholder="name@example.com or mobile number"/></label>
+        <label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} autoComplete={mode==="login"?"current-password":"new-password"} placeholder="At least 8 characters"/></label>
+        {mode==="register"&&<label>Confirm password<input type="password" value={confirmPassword} onChange={event=>setConfirmPassword(event.target.value)} autoComplete="new-password"/></label>}
+        {error&&<div className="auth-error" role="alert">{error}</div>}<button className="auth-submit" disabled={busy||!identifier.trim()||!password} onClick={submit}>{busy?"Please wait…":mode==="register"?"Create patient account":`Sign in to ${portal==="PATIENT"?"patient portal":portal==="ASHA"?"ASHA portal":"clinical workspace"}`}</button>
+        {mode==="login"&&<div className="demo-access"><b>Judge demo access</b><span>{identifier}</span><small>Password: RuralCare@2026</small>{portal==="CLINICAL"&&<button onClick={()=>setIdentifier(identifier.startsWith("admin")?"doctor.demo@ruralcare.local":"admin.demo@ruralcare.local")}>{identifier.startsWith("admin")?"Use Doctor demo":"Use Facility Admin demo"}</button>}</div>}
+        <p className="auth-note">Synthetic prototype accounts · no ABHA or government identity claim</p>
+      </div>
+    </section>
+  </main>;
+}
 
 function AuthenticatedApp(){const{user,loading}=useAuth();if(loading)return <main className="auth-loading"><HeartPulse/><b>Restoring secure session…</b></main>;if(!user)return <LoginScreen/>;return <App user={user}/>;}
 
 function App({user}:{user:AuthUser}) {
   const {logout}=useAuth();
-  const [view, setView] = useState<PathView>(user.role==="STAFF"?"dashboard":"input");
+  const isClinical=["DOCTOR","FACILITY_ADMIN","STAFF"].includes(user.role),isPatient=user.role==="CITIZEN";
+  const [view, setView] = useState<PathView>(isClinical?"dashboard":isPatient?"home":"input");
   const [language, setLanguage] = useState<"en" | "ta">("en");
   const [sourceMode, setSourceMode] = useState<"CITIZEN" | "ASHA_ASSISTED">(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");
   const [syncState, setSyncState] = useState<SyncState>("SYNCED");
@@ -1672,7 +1691,7 @@ function App({user}:{user:AuthUser}) {
   const [voiceTranscript,setVoiceTranscript]=useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<number | null>(null);
-  const [patientLabel, setPatientLabel] = useState("Demo patient");
+  const [patientLabel, setPatientLabel] = useState(user.name||"Patient");
   const [notice, setNotice] = useState("");
   const [myReferrals,setMyReferrals]=useState<Array<Record<string,any>>>([]);
   const [online, setOnline] = useState(navigator.onLine);
@@ -1687,6 +1706,7 @@ function App({user}:{user:AuthUser}) {
     "Continuity",
   ];
   const stageIndex: Record<PathView, number> = {
+    home: 0,
     input: 1,
     understanding: 1,
     urgency: 2,
@@ -1709,9 +1729,9 @@ function App({user}:{user:AuthUser}) {
       removeEventListener("offline", off);
     };
   }, []);
-  useEffect(()=>{loadWorkflow<any>(user.id).then(saved=>{if(saved){setLanguage(saved.language||"en");setSourceMode(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setStructuredIntake(saved.structuredIntake||null);setAskedQuestionIds(saved.askedQuestionIds||[]);setExtractionMetadata(saved.extractionMetadata||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(user.role==="STAFF"?"dashboard":saved.view==="dashboard"?"input":saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[user.id]);
+  useEffect(()=>{loadWorkflow<any>(user.id).then(saved=>{if(saved){setLanguage(saved.language||user.preferredLanguage||"en");setSourceMode(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setStructuredIntake(saved.structuredIntake||null);setAskedQuestionIds(saved.askedQuestionIds||[]);setExtractionMetadata(saved.extractionMetadata||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(isClinical?"dashboard":isPatient?"home":saved.view==="dashboard"?"input":saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[user.id]);
   useEffect(()=>{if(!workflowLoaded)return;saveWorkflow(user.id,{language,sourceMode,message,assessment,structuredIntake,askedQuestionIds,extractionMetadata,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,user.id,language,sourceMode,message,assessment,structuredIntake,askedQuestionIds,extractionMetadata,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
-  useEffect(()=>{if(!online||user.role==="STAFF")return;setSyncState("SYNCING");pendingActions(user.id).then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch(error:any){if(String(error?.message).includes("sign in"))setNotice("Please sign in again before syncing this account's offline work.");setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online,user.id,user.role]);
+  useEffect(()=>{if(!online||isClinical)return;setSyncState("SYNCING");pendingActions(user.id).then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch(error:any){if(String(error?.message).includes("sign in"))setNotice("Please sign in again before syncing this account's offline work.");setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online,user.id,user.role,isClinical]);
   async function start() {
     if (!message.trim())
       return setNotice("Please describe the healthcare need first.");
@@ -1827,17 +1847,17 @@ function App({user}:{user:AuthUser}) {
           </div>
         </div>
         <nav>
-          {user.role!=="STAFF"&&<button
+          {!isClinical&&<button
             className={view !== "dashboard" ? "active" : ""}
             onClick={openCareJourney}
           >
             <Sparkles /> Care pathway
           </button>}
-          {user.role!=="STAFF"&&<button onClick={openMyReferrals}>
+          {!isClinical&&<button onClick={openMyReferrals}>
             <ClipboardPlus /> My referrals
           </button>}
-          {user.role==="STAFF"&&<button className="active" onClick={() => setView("dashboard")}>
-            <UsersRound /> Staff view
+          {isClinical&&<button className="active" onClick={() => setView("dashboard")}>
+            <UsersRound /> {user.role==="DOCTOR"?"Doctor workspace":"Facility operations"}
           </button>}
         </nav>
         <div className="aside-card">
@@ -1914,6 +1934,7 @@ function App({user}:{user:AuthUser}) {
             <button onClick={() => setNotice("")}>×</button>
           </div>
         )}
+        {view==="home"&&isPatient&&<section className="patient-home"><div className="patient-welcome"><div><p className="kicker">PATIENT PORTAL</p><h1>Vanakkam, {user.name.split(" ")[0]}.</h1><p>Describe a need in Tamil, English, or Tanglish and keep the same care story through referral and follow-up.</p><div className="patient-home-actions"><button onClick={()=>{setMessage("");setAssessment(null);setStructuredIntake(null);setView("input");}}><Sparkles/> Start a new care request</button><button className="ghost" onClick={openMyReferrals}><ClipboardPlus/> View my referrals</button></div></div><HeartPulse/></div><div className="patient-home-grid"><article><span><Mic/></span><b>Speak naturally</b><p>Review and confirm the transcript before it enters the safety pathway.</p></article><article><span><SearchCheck/></span><b>Find suitable public care</b><p>Service fit and capacity—not distance alone—guide the route.</p></article><article><span><Route/></span><b>Track continuity</b><p>See referral, reroute, arrival, and follow-up status in one account.</p></article></div>{currentReferral&&<article className="active-referral-home"><div><p className="kicker">ACTIVE CARE JOURNEY</p><h2>{currentReferral.demoId}</h2><span>{currentReferral.destinationFacility}</span></div><strong>{String(currentReferral.status||"CREATED").replaceAll("_"," ")}</strong><button onClick={()=>setView("followup")}>Open journey <ArrowRight/></button></article>}<div className="patient-safety-note"><ShieldCheck/><p><b>Navigation support—not a diagnosis.</b> Emergency warning signs always direct you to immediate human help.</p></div></section>}
         {view === "input" && (
           <section className="home-grid">
             <div className="welcome-panel">
@@ -2532,7 +2553,7 @@ function App({user}:{user:AuthUser}) {
           </section>
         )}
         {view === "myreferrals" && <section className="flow-card pathway-card my-referrals"><div className="flow-title"><p className="kicker">ACCOUNT-OWNED CONTINUITY</p><h1>{user.role==="ASHA"?"My assisted referrals":"My referrals"}</h1><p>Only referrals owned by or explicitly linked to this signed-in account are returned by the API.</p></div>{myReferrals.length===0?<div className="empty-referrals"><ClipboardPlus/><b>No referrals for this account yet.</b><button onClick={()=>setView("input")}>Start a care journey</button></div>:<div className="referral-account-list">{myReferrals.map(item=><article key={item.id}><div><span>{item.demoId}</span><b>{item.careNeed||item.service?.replaceAll("_"," ")}</b><small>{item.sourceMode?.replaceAll("_"," ")} · {item.destinationFacility}</small></div><strong>{item.status?.replaceAll("_"," ")}</strong><button onClick={()=>{setCurrentReferral(item);setView("followup");}}>Open</button></article>)}</div>}<button className="back text-button" onClick={openCareJourney}><ChevronLeft/> Back to care journey</button></section>}
-        {view === "dashboard" && user.role==="STAFF" && (
+        {view === "dashboard" && isClinical && (
           <LiveStaffDashboard />
         )}
       </main>
