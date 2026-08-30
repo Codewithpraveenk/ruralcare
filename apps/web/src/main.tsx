@@ -31,10 +31,16 @@ import {
 } from "lucide-react";
 import {
   assessNeed,
+  applyAdaptiveAnswer,
   calculateDistanceKm,
+  extractStructuredNeed,
+  nextSafetyQuestion,
   rankFacilities,
   routeFacilities,
+  structuredToMessage,
   type Assessment,
+  type SafetyQuestion,
+  type StructuredIntake,
   type Facility,
   type RouteDecision,
   type Service,
@@ -1649,6 +1655,10 @@ function App({user}:{user:AuthUser}) {
   const [workflowLoaded, setWorkflowLoaded] = useState(false);
   const [message, setMessage] = useState("");
   const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [structuredIntake,setStructuredIntake]=useState<StructuredIntake|null>(null);
+  const [adaptiveQuestion,setAdaptiveQuestion]=useState<SafetyQuestion|null>(null);
+  const [askedQuestionIds,setAskedQuestionIds]=useState<string[]>([]);
+  const [extractionMetadata,setExtractionMetadata]=useState<Record<string,any>|null>(null);
   const [candidates, setCandidates] = useState<FacilityCandidate[]>([]);
   const [recommended, setRecommended] = useState<FacilityCandidate | null>(
     null,
@@ -1658,7 +1668,8 @@ function App({user}:{user:AuthUser}) {
   const [selected, setSelected] = useState<FacilityCandidate | null>(null);
   const [currentReferral, setCurrentReferral] = useState<Record<string, any> | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
-  const [voiceState, setVoiceState] = useState<"IDLE" | "RECORDING" | "TRANSCRIBING">("IDLE");
+  const [voiceState, setVoiceState] = useState<"IDLE" | "RECORDING" | "TRANSCRIBING" | "TRANSCRIPT_READY" | "CONFIRMED" | "ERROR">("IDLE");
+  const [voiceTranscript,setVoiceTranscript]=useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<number | null>(null);
   const [patientLabel, setPatientLabel] = useState("Demo patient");
@@ -1698,21 +1709,23 @@ function App({user}:{user:AuthUser}) {
       removeEventListener("offline", off);
     };
   }, []);
-  useEffect(()=>{loadWorkflow<any>(user.id).then(saved=>{if(saved){setLanguage(saved.language||"en");setSourceMode(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(user.role==="STAFF"?"dashboard":saved.view==="dashboard"?"input":saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[user.id]);
-  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow(user.id,{language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,user.id,language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
+  useEffect(()=>{loadWorkflow<any>(user.id).then(saved=>{if(saved){setLanguage(saved.language||"en");setSourceMode(user.role==="ASHA"?"ASHA_ASSISTED":"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setStructuredIntake(saved.structuredIntake||null);setAskedQuestionIds(saved.askedQuestionIds||[]);setExtractionMetadata(saved.extractionMetadata||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(user.role==="STAFF"?"dashboard":saved.view==="dashboard"?"input":saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[user.id]);
+  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow(user.id,{language,sourceMode,message,assessment,structuredIntake,askedQuestionIds,extractionMetadata,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,user.id,language,sourceMode,message,assessment,structuredIntake,askedQuestionIds,extractionMetadata,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
   useEffect(()=>{if(!online||user.role==="STAFF")return;setSyncState("SYNCING");pendingActions(user.id).then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch(error:any){if(String(error?.message).includes("sign in"))setNotice("Please sign in again before syncing this account's offline work.");setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online,user.id,user.role]);
   async function start() {
     if (!message.trim())
       return setNotice("Please describe the healthcare need first.");
-    const fallback = assessNeed(message);
+    if(voiceState==="TRANSCRIPT_READY")return setNotice("Please confirm or edit the transcript before continuing.");
+    const fallbackStructured=extractStructuredNeed(message,language),fallback = assessNeed(structuredToMessage(fallbackStructured));
+    setStructuredIntake(fallbackStructured);setExtractionMetadata({provider:"LOCAL_RULES",fallbackUsed:true,promptVersion:"clinical-extraction-v1"});setAskedQuestionIds([]);setAdaptiveQuestion(nextSafetyQuestion(fallbackStructured));
     setAssessment(fallback);
-    setView("urgency");
+    setView("understanding");
     try {
-      const result = await request("/api/triage", {
+      const result = await request("/api/intake/extract", {
         method: "POST",
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ rawText:message,preferredResponseLanguage:language }),
       });
-      setAssessment(result.assessment);
+      setAssessment(result.assessment);setStructuredIntake(result.structured);setExtractionMetadata(result.metadata);setAdaptiveQuestion(result.nextQuestion);
     } catch {
       setNotice("Offline-safe structured extraction is active.");
     }
@@ -1752,6 +1765,7 @@ function App({user}:{user:AuthUser}) {
     setFollowUpAnswers({});
     setNotice("Safety answers added to the structured assessment.");
   }
+  function answerAdaptive(answer:"YES"|"NO"|"NOT_SURE") {if(!structuredIntake||!adaptiveQuestion)return;const updated=applyAdaptiveAnswer(structuredIntake,adaptiveQuestion.questionId,answer),asked=[...askedQuestionIds,adaptiveQuestion.questionId],updatedAssessment=assessNeed(structuredToMessage(updated));setStructuredIntake(updated);setAskedQuestionIds(asked);setAssessment(updatedAssessment);setAdaptiveQuestion(nextSafetyQuestion(updated,asked,5,updatedAssessment.urgency==="EMERGENCY"));setNotice(answer==="NOT_SURE"?"That detail remains unknown; the pathway will stay safety-bounded.":"Answer recorded and deterministic safety rules rechecked.");}
   async function createReferral() {
     if (!assessment || !selected) return;
     const clientId=crypto.randomUUID();
@@ -1795,7 +1809,7 @@ function App({user}:{user:AuthUser}) {
   async function confirmReroute(){if(!currentReferral)return;try{const result=await request(`/api/referrals/${currentReferral.id}/reroute/confirm`,{method:"POST"});setCurrentReferral(result.referral);setNotice("Alternative public facility confirmed. Referral history was preserved.");}catch{setNotice("Reroute confirmation needs a connection. Your original destination is unchanged.");}}
   async function submitFollowUp(outcome:"CARE_REACHED"|"COULD_NOT_REACH"|"SERVICE_NOT_AVAILABLE"|"FOLLOW_UP_NEEDED") {if(!currentReferral)return;const clientId=crypto.randomUUID(),body={clientId,outcome,note:followUpNote,sourceMode};const path=`/api/referrals/${currentReferral.id}/follow-up`;try{const result=await request(path,{method:"POST",body:JSON.stringify(body)});setCurrentReferral(result.referral?.referral||currentReferral);setSyncState("SYNCED");setNotice(outcome==="CARE_REACHED"?"Care reached and continuity completed.":"Follow-up outcome shared with Staff View.");}catch{await queueAction(user.id,{id:clientId,path,method:"POST",body});setSyncState("PENDING_SYNC");setNotice("Follow-up saved offline and waiting to sync for this signed-in account.");}}
   useEffect(()=>{if(view!=="followup"||!currentReferral||!online)return;const timer=window.setInterval(()=>{refreshReferral();},10000);return()=>window.clearInterval(timer);},[view,currentReferral?.id,online]);
-  async function transcribeRecording(blob:Blob,spokenLanguage:"ta"|"en") {setVoiceState("TRANSCRIBING");setNotice(spokenLanguage==="ta"?"தமிழ் குரலை எழுத்தாக மாற்றுகிறோம்…":"Converting speech to text…");try{const audioBase64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});const result=await request("/api/transcribe",{method:"POST",body:JSON.stringify({audioBase64,mimeType:blob.type||"audio/webm",language:spokenLanguage})});setMessage(previous=>`${previous.trim()}${previous.trim()?" ":""}${result.text}`.trim());setNotice(spokenLanguage==="ta"?"தமிழ் உரை பெட்டியில் சேர்க்கப்பட்டது. சரிபார்த்து தொடரவும்.":"Transcript added. Review it, then continue.");}catch(error:any){setNotice(error?.message||"Audio could not be transcribed. Check the API key and connectivity.");}finally{setVoiceState("IDLE");}}
+  async function transcribeRecording(blob:Blob,spokenLanguage:"ta"|"en") {setVoiceState("TRANSCRIBING");setNotice(spokenLanguage==="ta"?"தமிழ் குரலை எழுத்தாக மாற்றுகிறோம்…":"Converting speech to text…");try{const audioBase64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});const result=await request("/api/transcribe",{method:"POST",body:JSON.stringify({audioBase64,mimeType:blob.type||"audio/webm",language:spokenLanguage})});setVoiceTranscript(result.text);setVoiceState("TRANSCRIPT_READY");setNotice(spokenLanguage==="ta"?"நாங்கள் கேட்ட உரையை சரிபார்த்து உறுதிப்படுத்தவும்.":"Review and confirm what we heard.");}catch(error:any){setVoiceState("ERROR");setNotice(error?.message||"Audio could not be transcribed. Check the API key and connectivity.");}}
   async function voice(spokenLanguage:"ta"|"en"=language){if(voiceState==="RECORDING"){if(recordingTimerRef.current)window.clearTimeout(recordingTimerRef.current);recorderRef.current?.stop();return;}if(voiceState!=="IDLE")return;setLanguage(spokenLanguage);if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined")return setNotice("Audio recording is unavailable in this browser. Please type the need.");try{const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});const preferred=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus"].find(type=>MediaRecorder.isTypeSupported(type));const recorder=new MediaRecorder(stream,preferred?{mimeType:preferred}:undefined),chunks:BlobPart[]=[];recorderRef.current=recorder;recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};recorder.onstop=()=>{stream.getTracks().forEach(track=>track.stop());recorderRef.current=null;const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});if(blob.size<500){setVoiceState("IDLE");setNotice("No usable speech was recorded. Tap once, speak, then tap Stop.");return;}void transcribeRecording(blob,spokenLanguage);};recorder.onerror=()=>{stream.getTracks().forEach(track=>track.stop());setVoiceState("IDLE");setNotice("The microphone recording failed. Check browser microphone permission.");};recorder.start(250);setVoiceState("RECORDING");setNotice(spokenLanguage==="ta"?"பதிவு செய்கிறது… பேசி முடித்ததும் நிறுத்தவும் அழுத்தவும்.":"Recording… tap Stop when you finish speaking.");recordingTimerRef.current=window.setTimeout(()=>{if(recorder.state==="recording")recorder.stop();},12000);}catch(error:any){setVoiceState("IDLE");setNotice(error?.name==="NotAllowedError"?"Microphone permission was blocked. Allow it in the address bar, then try again.":"Could not open the microphone. Check that it is connected and not used by another app.");}}
   const standardCard = (children: React.ReactNode) => (
     <section className="flow-card pathway-card">{children}</section>
@@ -1928,6 +1942,7 @@ function App({user}:{user:AuthUser}) {
                       : "Example: I am pregnant and need a check-up"
                   }
                 />
+                {voiceState==="TRANSCRIPT_READY"&&<div className="transcript-review" role="region" aria-label="Speech transcript review"><b>{language==="ta"?"நாங்கள் கேட்டது":"We heard"}</b><textarea value={voiceTranscript} onChange={event=>setVoiceTranscript(event.target.value)} aria-label="Editable speech transcript"/><div><button onClick={()=>{setMessage(previous=>`${previous.trim()}${previous.trim()?" ":""}${voiceTranscript.trim()}`.trim());setVoiceState("CONFIRMED");setNotice(language==="ta"?"உரை உறுதிப்படுத்தப்பட்டது.":"Transcript confirmed.");}} disabled={!voiceTranscript.trim()}><CheckCircle2 size={16}/> {language==="ta"?"உறுதிப்படுத்து":"Confirm transcript"}</button><button onClick={()=>{setVoiceTranscript("");setVoiceState("IDLE");setNotice(language==="ta"?"மீண்டும் பேசுங்கள்.":"Ready to record again.");}}><RotateCcw size={16}/> {language==="ta"?"மீண்டும் முயற்சி":"Try again"}</button></div><small>You can edit the words above. Clinical extraction starts only after confirmation.</small></div>}
                 <div className="input-actions">
                   <div className="voice-inputs" aria-label="Voice input language">
                     <IconButton Icon={Mic} className={`ghost tamil-voice ${voiceState!=="IDLE"?"listening":""}`} onClick={() => voice("ta")}>
@@ -2026,7 +2041,9 @@ function App({user}:{user:AuthUser}) {
                       : assessment.language}
                   </b>
                 </div>
+                {structuredIntake&&<><div><span>Age group</span><b>{structuredIntake.ageGroup}{structuredIntake.age!==null?` · ${structuredIntake.age} years`:""}</b></div><div><span>Important unknowns</span><b>{structuredIntake.missingImportantFields.length?structuredIntake.missingImportantFields.join(", "):"None identified"}</b></div></>}
               </div>
+              <p className="voice-privacy">Understanding source: {extractionMetadata?.provider==="OPENAI"?"AI-assisted structured extraction":"offline-safe local extraction"}. Urgency is always decided by deterministic safety rules.</p>
               <div className="flow-actions">
                 <IconButton
                   Icon={ChevronLeft}
@@ -2102,6 +2119,8 @@ function App({user}:{user:AuthUser}) {
                   <IconButton Icon={Hospital} className="ghost" onClick={loadComparison}>Show emergency destination</IconButton>
                   <p>Immediate guidance remains first. Facility routing is restricted to emergency-capable public care.</p>
                 </div>
+              ) : assessment.urgency === "INSUFFICIENT_INFORMATION"&&adaptiveQuestion ? (
+                <div className="missing-information"><b>One relevant safety detail</b><p>{adaptiveQuestion.translations[language]}</p><div className="safety-questions"><div className="safety-question"><span>{adaptiveQuestion.translations[language]}</span><div><button onClick={()=>answerAdaptive("YES")}>Yes</button><button onClick={()=>answerAdaptive("NO")}>No</button><button onClick={()=>answerAdaptive("NOT_SURE")}>Not sure</button></div></div></div><small>{adaptiveQuestion.sourceReference}</small></div>
               ) : assessment.urgency === "INSUFFICIENT_INFORMATION" ? (
                 <div className="missing-information">
                   <b>Safety details needed before routing</b>

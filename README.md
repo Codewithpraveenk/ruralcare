@@ -33,7 +33,13 @@ Citizen registration never accepts a role and always creates a `CITIZEN`. ASHA a
 
 Choose Citizen or ASHA-assisted mode, select Tamil or English, enter a need such as `My child has fever and cough for two days`, answer the safety questions, confirm the bounded assessment, choose a facility, then create a continuity pass. The Care Route shows exactly how the stated need became a required service and care level.
 
-For reliable Tamil speech input (including Brave), copy `.env.example` to `.env`, add an `OPENAI_API_KEY`, and restart `npm run dev`. Select **தமிழில் பேசுங்கள்**, allow microphone access, speak, then press **நிறுத்தி எழுத்தாக்கவும்** (or wait for the 12-second automatic stop). The app records a short clip, requests Tamil transcription through its own API, and writes the returned Tamil into the editable intake box. RuralCare does not persist the audio. Review the transcript before continuing because speech recognition can be wrong. Transcription requires connectivity; typed Tamil and deterministic triage remain available offline.
+For reliable Tamil speech input (including Brave), copy `.env.example` to `.env`, add an `OPENAI_API_KEY`, and restart `npm run dev`. Select **தமிழில் பேசுங்கள்**, allow microphone access, speak, then press **நிறுத்தி எழுத்தாக்கவும்** (or wait for the 12-second automatic stop). The app records a short clip and displays an editable **We heard / நாங்கள் கேட்டது** transcript. The transcript enters intake only after the user confirms it; retry discards it. RuralCare does not persist the audio. Transcription requires connectivity; typed Tamil and deterministic fallback extraction remain available offline.
+
+## Multilingual AI intake boundary
+
+When `OPENAI_API_KEY` is configured, `/api/intake/extract` uses the Responses API with strict Structured Outputs to normalize English, Tamil, Tanglish, or mixed input. The request contains only the health-need text and preferred response language, sets `store: false`, and is validated again with a strict server schema. The schema deliberately has no diagnosis, prescription, urgency, or facility-choice field. Missing facts remain `null`, distinct from an explicit `false`.
+
+The default extraction model is configured by `OPENAI_EXTRACTION_MODEL` (currently `gpt-5.4-nano`). A timeout, invalid output, missing key, or network failure immediately activates the local rules fallback. After extraction, the existing deterministic triage engine alone produces the safety class. Child-fever follow-up uses a curated one-question-at-a-time registry, supports Yes / No / Not sure, stops on an emergency finding, never repeats a question, and asks at most five questions.
 
 On the follow-up screen, refresh the shared referral status or report whether care was reached. Outcomes such as “service not available” become non-identifying service-gap events in Staff View. To demonstrate resilience, switch offline in browser developer tools: the current journey, referral and follow-up actions persist in IndexedDB and sync idempotently when connectivity returns.
 
@@ -61,7 +67,7 @@ For a judge-facing machine-readable explanation, call `GET /api/facility-data`. 
 - Facility identity and coordinates are real-directory/enriched records as documented above; availability and all care records are synthetic prototype data.
 - Deterministic rules—not an LLM—produce `EMERGENCY`, `URGENT`, `ROUTINE`, or `INSUFFICIENT_INFORMATION`. Every non-routine result exposes its rule ID, finding, source reference, and non-diagnostic explanation.
 - A child fever alone requests safety details before classification; it never automatically becomes urgent.
-- AI, if configured in a future deployment, may only extract validated structured facts. It never decides urgency, emergency routing, or facility ranking.
+- AI, when configured, only extracts validated structured facts. It never decides urgency, emergency routing, or facility ranking.
 - Do not put API keys in source code or commit `.env`.
 
 Read [the data and triage audit](docs/data-and-triage-audit.md) for source counts, Chengalpattu coverage, citations, simulated fields, and limitations.

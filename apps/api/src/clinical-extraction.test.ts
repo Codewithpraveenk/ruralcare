@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { HybridClinicalExtractionProvider, structuredIntakeSchema } from "./clinical-extraction.ts";
+
+test("provider falls back safely when no API key is configured",async()=>{const previous=process.env.OPENAI_API_KEY;delete process.env.OPENAI_API_KEY;try{const result=await new HybridClinicalExtractionProvider().extract("7 vayasu child ku mild kaichal iruku","ta");assert.equal(result.metadata.provider,"LOCAL_RULES");assert.equal(result.metadata.fallbackUsed,true);assert.equal(result.structured.age,7);assert.equal(result.structured.preferredResponseLanguage,"ta");}finally{if(previous)process.env.OPENAI_API_KEY=previous;}});
+test("strict clinical schema rejects invented urgency fields",()=>{const value={inputLanguage:"ENGLISH",preferredResponseLanguage:"en",age:null,ageGroup:"UNKNOWN",symptoms:[],duration:null,temperatureCelsius:null,breathingDifficulty:null,drinkingNormally:null,repeatedVomiting:null,alertness:null,convulsions:null,stiffNeck:null,severeBleeding:null,pregnancyContext:null,explicitNegatives:[],missingImportantFields:[],ambiguities:[],extractionConfidence:.5,urgency:"EMERGENCY"};assert.equal(structuredIntakeSchema.safeParse(value).success,false);});
