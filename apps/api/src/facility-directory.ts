@@ -33,6 +33,7 @@ export const tamilNaduPublicDirectory: DirectoryRecord[] = sourceTsv.split("\n")
 
 // Public-map enrichments are intentionally separate from the government-directory facts.
 const coordinateEnrichments: CoordinateEnrichment[] = [
+  { facilityId: "rajiv-gandhi-government-general-hospital", sourceRowId: "23749", latitude: 13.0809, longitude: 80.27733, lookupSource: "https://www.wikidata.org/wiki/Q5588842", matchingEvidence: "Government General Hospital, Chennai 600003 matched to the Chennai district government-hospital listing and Rajiv Gandhi Government General Hospital coordinate entity", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISTRICT_HOSPITAL" },
   { facilityId: "public-health-centre-west-mambalam", sourceRowId: "24035", latitude: 13.036565, longitude: 80.22176, lookupSource: "https://www.hospitalsnearme.in/tamilnadu-tn/public-health-centre-hospital-chennai/", matchingEvidence: "Exact facility name, 174 Lake View Road, West Mambalam, Chennai 600033", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "PHC" },
   { facilityId: "gopalapuram-dispensary", sourceRowId: "24197", latitude: 13.049097, longitude: 80.257621, lookupSource: "https://cghshospitals.com/wellness-centres/chennai", matchingEvidence: "Exact facility name, No.1 1st Street, Gopalapuram, Chennai 600086", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISPENSARY" },
   { facilityId: "kk-nagar-dispensary", sourceRowId: "24199", latitude: 13.0368, longitude: 80.2079107, lookupSource: "https://www.latlong.net/poi/k-k-nagar-dispensary-and-polyclinic-402035", matchingEvidence: "Exact facility name, GPRA Complex, CPWD Quarters, K.K.Nagar, Chennai 600078", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISPENSARY" },
@@ -41,6 +42,7 @@ const coordinateEnrichments: CoordinateEnrichment[] = [
 ];
 
 const shiftAvailability: Record<string, { available: boolean; note: string }> = {
+  "rajiv-gandhi-government-general-hospital": { available: true, note: "Availability simulated for demo" },
   "public-health-centre-west-mambalam": { available: true, note: "Availability simulated for demo" },
   "gopalapuram-dispensary": { available: false, note: "Unavailable in this synthetic demo shift" },
   "kk-nagar-dispensary": { available: true, note: "Availability simulated for demo" },
@@ -49,6 +51,12 @@ const shiftAvailability: Record<string, { available: boolean; note: string }> = 
 };
 
 const syntheticCapacity: Record<string, Partial<Record<Service, ServiceCapacity>>> = {
+  "rajiv-gandhi-government-general-hospital": {
+    PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 35, availableBeds: 8, note: "Synthetic general-care capacity" },
+    CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 4, note: "Synthetic child-health capacity" },
+    MATERNITY: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 4, note: "Synthetic maternity capacity" },
+    EMERGENCY: { status: "AVAILABLE", estimatedWaitMinutes: 8, availableBeds: 5, note: "Synthetic emergency capacity" }
+  },
   "public-health-centre-west-mambalam": {
     PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "General OPD marked unavailable for the deterministic rerouting demo" },
     CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 25, availableBeds: 2, note: "Child-health desk available in the synthetic demo shift" },

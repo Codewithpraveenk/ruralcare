@@ -32,6 +32,7 @@ import {
   assessNeed,
   calculateDistanceKm,
   rankFacilities,
+  routeFacilities,
   type Assessment,
   type Facility,
   type RouteDecision,
@@ -113,6 +114,12 @@ const localFacilities: Facility[] = [
     phone: "Not published in supplied directory",
     latitude: 13.036565,
     longitude: 80.22176,
+    capabilitySource: "INFERRED_FROM_FACILITY_TYPE",
+    capacity: {
+      PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "General OPD unavailable in the rerouting demo" },
+      CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 25, availableBeds: 2, note: "Synthetic child-health capacity" },
+      MATERNITY: { status: "LIMITED", estimatedWaitMinutes: 45, availableBeds: 1, note: "Synthetic maternity capacity" },
+    },
   }),
   withDistance({
     id: "kk-nagar-dispensary",
@@ -125,18 +132,27 @@ const localFacilities: Facility[] = [
     phone: "Not published in supplied directory",
     latitude: 13.0368,
     longitude: 80.2079107,
+    capabilitySource: "INFERRED_FROM_FACILITY_TYPE",
+    capacity: { PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 12, availableBeds: 0, note: "Synthetic primary-care capacity" } },
   }),
   withDistance({
-    id: "kanyakumari-government-medical-college",
-    name: "Kanyakumari Government Hospital and College",
+    id: "rajiv-gandhi-government-general-hospital",
+    name: "Government General Hospital",
     type: "DISTRICT_HOSPITAL",
     services: ["PRIMARY_CARE", "CHILD_HEALTH", "MATERNITY", "EMERGENCY"],
     available: true,
     hours: "Availability simulated for demo",
-    address: "Asaripallam, Kanniyakumari 629201",
+    address: "Park Town, Chennai 600003",
     phone: "Not published in supplied directory",
-    latitude: 8.1738722,
-    longitude: 77.3938778,
+    latitude: 13.0809,
+    longitude: 80.27733,
+    capabilitySource: "INFERRED_FROM_FACILITY_TYPE",
+    capacity: {
+      PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 35, availableBeds: 8, note: "Synthetic general-care capacity" },
+      CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 4, note: "Synthetic child-health capacity" },
+      MATERNITY: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 4, note: "Synthetic maternity capacity" },
+      EMERGENCY: { status: "AVAILABLE", estimatedWaitMinutes: 8, availableBeds: 5, note: "Synthetic emergency capacity" },
+    },
   }),
 ];
 const queueKey = "ruralcare-referral-queue";
@@ -497,7 +513,7 @@ type CoordinationCase = {
   urgency: "EMERGENCY" | "URGENT" | "ROUTINE";
   facility: string;
   stage: string;
-  status: "CREATED" | "ACCEPTED" | "ARRIVED" | "FOLLOW_UP";
+  status: "CREATED" | "ACCEPTED" | "ARRIVED" | "FOLLOW_UP_DUE" | "COMPLETED";
   followUpDue?: string;
   updatedAt: string;
 };
@@ -539,7 +555,7 @@ const fallbackCoordination: Coordination = {
     stage: item.status,
     status:
       item.status === "Follow-up"
-        ? "FOLLOW_UP"
+        ? "FOLLOW_UP_DUE"
         : (item.status.toUpperCase() as CoordinationCase["status"]),
     updatedAt: new Date().toISOString(),
   })),
@@ -629,7 +645,8 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
       "CREATED",
       "ACCEPTED",
       "ARRIVED",
-      "FOLLOW_UP",
+      "FOLLOW_UP_DUE",
+      "COMPLETED",
     ];
     const next =
       order[Math.min(order.indexOf(item.status) + 1, order.length - 1)];
@@ -643,8 +660,8 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
                     ...row,
                     status: next,
                     stage:
-                      next === "FOLLOW_UP"
-                        ? "Follow-up"
+                      next === "FOLLOW_UP_DUE"
+                        ? "Follow-up due"
                         : next.slice(0, 1) + next.slice(1).toLowerCase(),
                   }
                 : row,
@@ -668,7 +685,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
   const visible = data.cases.filter((item) =>
     filter === "All" || filter === "Priority"
       ? filter === "All" || item.urgency !== "ROUTINE"
-      : item.status === "FOLLOW_UP",
+      : item.status === "FOLLOW_UP_DUE",
   );
   const alert = data.capacityAlerts[0];
   return (
@@ -793,7 +810,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
                   className="case-action"
                   onClick={() => advance(item)}
                 >
-                  {item.status === "FOLLOW_UP" ? "Reviewed" : "Advance"}
+                  {item.status === "COMPLETED" ? "Completed" : "Advance"}
                 </IconButton>
               </div>
             ))}
@@ -851,13 +868,13 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
           </span>
         </div>
         <div className="pipeline-steps">
-          {["CREATED", "ACCEPTED", "ARRIVED", "FOLLOW_UP"].map(
+          {["CREATED", "ACCEPTED", "ARRIVED", "FOLLOW_UP_DUE", "COMPLETED"].map(
             (stage, index) => (
               <div key={stage}>
                 <span>{index + 1}</span>
                 <b>
-                  {stage === "FOLLOW_UP"
-                    ? "Follow-up"
+                  {stage === "FOLLOW_UP_DUE"
+                    ? "Follow-up due"
                     : stage.slice(0, 1) + stage.slice(1).toLowerCase()}
                 </b>
                 <small>
@@ -1587,6 +1604,8 @@ const unavailableDemoFacility: Facility = withDistance({
   phone: "Not published in supplied directory",
   latitude: 13.049097,
   longitude: 80.257621,
+  capabilitySource: "INFERRED_FROM_FACILITY_TYPE",
+  capacity: { PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "Unavailable in this synthetic demo shift" } },
 });
 function App() {
   const [view, setView] = useState<PathView>("input");
@@ -1598,6 +1617,7 @@ function App() {
     null,
   );
   const [routeDecision, setRouteDecision] = useState<RouteDecision | null>(null);
+  const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, "YES" | "NO">>({});
   const [selected, setSelected] = useState<FacilityCandidate | null>(null);
   const [patientLabel, setPatientLabel] = useState("Demo patient");
   const [notice, setNotice] = useState("");
@@ -1608,25 +1628,20 @@ function App() {
       : { prompt: "What healthcare help do you need?", next: "Continue" };
   const stageNames = [
     "Need",
-    "Understand",
-    "Urgency",
-    "Service",
-    "Compare",
-    "Explain",
-    "Reroute",
-    "Refer",
-    "Follow up",
+    "Safety",
+    "Recommendation",
+    "Continuity",
   ];
   const stageIndex: Record<PathView, number> = {
     input: 1,
-    understanding: 2,
-    urgency: 3,
-    service: 4,
-    comparison: 5,
-    recommendation: 6,
-    reroute: 7,
-    referral: 8,
-    followup: 9,
+    understanding: 1,
+    urgency: 2,
+    service: 2,
+    comparison: 3,
+    recommendation: 3,
+    reroute: 3,
+    referral: 4,
+    followup: 4,
     dashboard: 0,
   };
   useEffect(() => {
@@ -1662,7 +1677,7 @@ function App() {
       return setNotice("Please describe the healthcare need first.");
     const fallback = assessNeed(message);
     setAssessment(fallback);
-    setView("understanding");
+    setView("urgency");
     try {
       const result = await request("/api/triage", {
         method: "POST",
@@ -1675,47 +1690,38 @@ function App() {
   }
   async function loadComparison() {
     if (!assessment) return;
-    const fallback = [...localFacilities, unavailableDemoFacility]
-      .filter((item) => item.services.includes(assessment.service))
-      .map((item) => ({
-        ...item,
-        travelMinutes: Math.max(6, Math.round(item.distanceKm * 4.2)),
-        serviceCapacity: {
-          status: item.available
-            ? ("AVAILABLE" as const)
-            : ("UNAVAILABLE" as const),
-          estimatedWaitMinutes: item.available ? 30 : 0,
-          availableBeds: 0,
-          note: "Cached synthetic demo status",
-        },
-        rerouteReason: item.available
-          ? null
-          : "Required service unavailable in the cached synthetic shift.",
-        reasons: [
-          `Provides ${assessment.service.replaceAll("_", " ")}`,
-          `${item.type} level of public care`,
-          `${Math.max(6, Math.round(item.distanceKm * 4.2))} min demo travel estimate`,
-          item.available
-            ? "Available in the current synthetic shift"
-            : "Unavailable in the current synthetic shift",
-        ],
-      }));
-    setCandidates(fallback);
-    setRecommended(
-      fallback
-        .filter((item) => item.available)
-        .sort((a, b) => a.distanceKm - b.distanceKm)[0] || null,
-    );
+    const fallbackDecision = routeFacilities([...localFacilities, unavailableDemoFacility], assessment, crypto.randomUUID());
+    setRouteDecision(fallbackDecision);
+    setCandidates(fallbackDecision.candidates as FacilityCandidate[]);
+    const fallbackRecommended=(fallbackDecision.candidates.find((item) => item.id === fallbackDecision.selectedFacilityId) as FacilityCandidate | undefined)||null;
+    setRecommended(fallbackRecommended); setSelected(fallbackRecommended);
     setView("comparison");
     try {
       const result = await request("/api/routing", { method: "POST", body: JSON.stringify({ message, requestId: crypto.randomUUID() }) });
       const decision = result.decision as RouteDecision;
       setRouteDecision(decision);
       setCandidates(decision.candidates as FacilityCandidate[]);
-      setRecommended((decision.candidates.find((item) => item.id === decision.selectedFacilityId) as FacilityCandidate | undefined) || null);
+      const onlineRecommended=(decision.candidates.find((item) => item.id === decision.selectedFacilityId) as FacilityCandidate | undefined)||null;
+      setRecommended(onlineRecommended); setSelected(onlineRecommended);
     } catch {
-      setNotice("Showing cached synthetic facility comparison.");
+      setNotice("Offline: showing the same routing engine with cached facility data.");
     }
+  }
+  function applySafetyAnswers() {
+    if (!assessment || assessment.missingInformation.some((question) => !followUpAnswers[question])) return setNotice("Please answer each safety question.");
+    const facts = assessment.missingInformation.map((question) => {
+      const yes = followUpAnswers[question] === "YES";
+      if (question.includes("drink or breastfeed")) return yes ? "The child can drink normally." : "The child cannot drink.";
+      if (question.includes("vomiting everything")) return yes ? "The child is vomiting everything." : "The child has no vomiting.";
+      if (question.includes("seizure or become difficult")) return yes ? "The child had a seizure." : "The child has no seizure and is awake.";
+      if (question.includes("difficulty breathing or a stiff neck")) return yes ? "The child has difficulty breathing." : "The child has no breathing difficulty and no stiff neck.";
+      return yes ? "There is difficulty breathing." : "There is no breathing difficulty and no confusion.";
+    });
+    const enriched = `${message} ${facts.join(" ")}`;
+    setMessage(enriched);
+    setAssessment(assessNeed(enriched));
+    setFollowUpAnswers({});
+    setNotice("Safety answers added to the structured assessment.");
   }
   async function createReferral() {
     if (!assessment || !selected) return;
@@ -2000,11 +2006,11 @@ function App() {
           assessment &&
           standardCard(
             <>
-              <button className="back" onClick={() => setView("understanding")}>
-                <ChevronLeft /> Understanding
+              <button className="back" onClick={() => setView("input")}>
+                <ChevronLeft /> Edit need
               </button>
               <div className="flow-title">
-                <p className="kicker">STEP 3 · SAFETY-BOUNDED URGENCY</p>
+                <p className="kicker">STEP 2 · SAFETY CHECK</p>
                 <h1>
                   {assessment.urgency === "EMERGENCY"
                     ? "Act immediately"
@@ -2051,33 +2057,32 @@ function App() {
                   >
                     Send demo emergency alert
                   </IconButton>
-                  <p>
-                    Emergency cases do not continue into normal facility
-                    matching.
-                  </p>
+                  <IconButton Icon={Hospital} className="ghost" onClick={loadComparison}>Show emergency destination</IconButton>
+                  <p>Immediate guidance remains first. Facility routing is restricted to emergency-capable public care.</p>
                 </div>
               ) : assessment.urgency === "INSUFFICIENT_INFORMATION" ? (
                 <div className="missing-information">
                   <b>Safety details needed before routing</b>
-                  <ul>
-                    {assessment.missingInformation.map((question) => <li key={question}>{question}</li>)}
-                  </ul>
-                  <IconButton Icon={ChevronLeft} onClick={() => setView("input")}>Add these details</IconButton>
+                  <p>Answer only these relevant questions. The deterministic safety rules will reassess the request.</p>
+                  <div className="safety-questions">
+                    {assessment.missingInformation.map((question) => <div className="safety-question" key={question}><span>{question}</span><div><button className={followUpAnswers[question] === "YES" ? "selected" : ""} onClick={() => setFollowUpAnswers({...followUpAnswers,[question]:"YES"})}>Yes</button><button className={followUpAnswers[question] === "NO" ? "selected" : ""} onClick={() => setFollowUpAnswers({...followUpAnswers,[question]:"NO"})}>No</button></div></div>)}
+                  </div>
+                  <IconButton Icon={CheckCircle2} onClick={applySafetyAnswers}>Recheck safety level</IconButton>
                 </div>
               ) : (
                 <div className="flow-actions">
                   <IconButton
                     Icon={ChevronLeft}
                     className="ghost"
-                    onClick={() => setView("understanding")}
+                    onClick={() => setView("input")}
                   >
-                    Review understanding
+                    Edit need
                   </IconButton>
                   <IconButton
-                    Icon={ArrowRight}
-                    onClick={() => setView("service")}
+                    Icon={GitCompareArrows}
+                    onClick={loadComparison}
                   >
-                    See required service
+                    Find suitable public care
                   </IconButton>
                 </div>
               )}
@@ -2091,7 +2096,7 @@ function App() {
                 <ChevronLeft /> Urgency
               </button>
               <div className="flow-title">
-                <p className="kicker">STEP 4 · NEED-TO-SERVICE TRANSLATION</p>
+                <p className="kicker">STEP 3 · SERVICE DECISION</p>
                 <h1>The required public service is clear.</h1>
                 <p>
                   This is the core product decision: your words are converted
@@ -2128,13 +2133,10 @@ function App() {
             <div className="section-heading">
               <div>
                 <p className="kicker">
-                  STEP 5 · DISTANCE + CAPABILITY + AVAILABILITY
+                  STEP 3 · SERVICE + FACILITY RECOMMENDATION
                 </p>
-                <h1>Compare suitable public facilities.</h1>
-                <p>
-                  Service suitability and care level are checked before distance.
-                  Availability is simulated for this prototype.
-                </p>
+                <h1>{assessment.urgency === "EMERGENCY" ? "Emergency-capable public destination." : "Your suitable public-care options."}</h1>
+                <p>{assessment.urgency === "EMERGENCY" ? "Immediate human help comes first. This destination is restricted to emergency-capable public care." : "Service suitability and care level are checked before distance. Availability is simulated for this prototype."}</p>
               </div>
               <div className="matching-chip">
                 <GitCompareArrows /> Service-aware comparison
@@ -2146,7 +2148,7 @@ function App() {
               service={assessment.service}
               onSelect={(facility) => setSelected(facility as FacilityCandidate)}
             />
-            {routeDecision && <p className="routing-explanation"><b>Why this route?</b> {routeDecision.explanation}</p>}
+            {routeDecision && <div className={`routing-explanation ${routeDecision.rerouted ? "rerouted" : ""}`}><b>{routeDecision.rerouted ? "Automatically rerouted" : "Why this route?"}</b><span>{routeDecision.explanation}</span><small>Required service: {routeDecision.plan.requiredService.replaceAll("_", " ")} · Availability source: SIMULATED_FOR_PROTOTYPE</small></div>}
             <div className="facility-list">
               {candidates.map((facility, index) => (
                 <article
@@ -2228,7 +2230,7 @@ function App() {
                 <ChevronLeft /> Facility comparison
               </button>
               <div className="flow-title">
-                <p className="kicker">STEP 6 · EXPLAINABLE RECOMMENDATION</p>
+                <p className="kicker">STEP 3 · EXPLAINABLE RECOMMENDATION</p>
                 <h1>Why {selected.name} is suitable.</h1>
                 <p>
                   We make the routing reason visible so the user and ASHA worker
@@ -2278,7 +2280,7 @@ function App() {
                 <ChevronLeft /> Facility comparison
               </button>
               <div className="flow-title">
-                <p className="kicker">STEP 7 · DYNAMIC REROUTING</p>
+                <p className="kicker">STEP 3 · DYNAMIC REROUTING</p>
                 <h1>This facility cannot serve the need right now.</h1>
                 <p>
                   {selected.name} provides the required service, but is
@@ -2359,6 +2361,11 @@ function App() {
                 <span>FINAL PUBLIC FACILITY</span>
                 <b>{selected.name}</b>
               </div>
+              {routeDecision?.rerouted && <><div className="pass-row"><span>ORIGINALLY CONSIDERED</span><b>{candidates.find((item) => item.id === routeDecision.originalFacilityId)?.name || "Unavailable facility"}</b></div><div className="pass-row"><span>REROUTE REASON</span><b>Required service unavailable in the simulated demo shift</b></div></>}
+              <div className="pass-row">
+                <span>WHY SELECTED</span>
+                <b>{routeDecision?.explanation || "Suitable service and care-level match within the demo region."}</b>
+              </div>
               <div className="pass-row">
                 <span>NEXT ACTION</span>
                 <b>{assessment.nextAction}</b>
@@ -2369,7 +2376,7 @@ function App() {
               </div>
             </div>
             <div className="referral-copy">
-              <p className="kicker">STEP 8 · REFERRAL CONTINUITY</p>
+              <p className="kicker">STEP 4 · REFERRAL CONTINUITY</p>
               <h1>Carry the correct pathway forward.</h1>
               <p>
                 The referral is not the beginning of RuralCare’s value. It
@@ -2396,7 +2403,7 @@ function App() {
             <div className="success-mark">
               <BadgeCheck />
             </div>
-            <p className="kicker">STEP 9 · FOLLOW-UP</p>
+            <p className="kicker">STEP 4 · FOLLOW-UP</p>
             <h1>The public-care pathway continues.</h1>
             <p>
               Your continuity pass is created or safely queued. The Staff View

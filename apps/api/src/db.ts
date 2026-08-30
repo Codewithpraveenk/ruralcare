@@ -9,7 +9,7 @@ export function initializeDatabase() {
   for (const column of [["capacityData", "TEXT NOT NULL DEFAULT '{}'"], ["lastUpdated", "TEXT NOT NULL DEFAULT 'Synthetic demo shift'"]]) if (!facilityColumns.some((item) => item.name === column[0])) db.exec(`ALTER TABLE Facility ADD COLUMN ${column[0]} ${column[1]}`);
   const columns = db.prepare("PRAGMA table_info(Referral)").all() as Array<{ name: string }>;
   for (const column of [["demoId", "TEXT"], ["careNeed", "TEXT"], ["followUpDue", "TEXT"], ["updatedAt", "TEXT"], ["requestId", "TEXT"], ["sourceMode", "TEXT"], ["selectedFacilityType", "TEXT"], ["routingExplanation", "TEXT"], ["rerouted", "INTEGER DEFAULT 0"], ["previousFacility", "TEXT"], ["routingAudit", "TEXT"]]) if (!columns.some((item) => item.name === column[0])) db.exec(`ALTER TABLE Referral ADD COLUMN ${column[0]} ${column[1]}`);
-  db.exec("UPDATE Referral SET status = CASE status WHEN 'PENDING' THEN 'CREATED' WHEN 'CONTACTED' THEN 'ACCEPTED' WHEN 'COMPLETED' THEN 'FOLLOW_UP' ELSE status END WHERE status IN ('PENDING','CONTACTED','COMPLETED')");
+  db.exec("UPDATE Referral SET status = CASE status WHEN 'PENDING' THEN 'CREATED' WHEN 'CONTACTED' THEN 'ACCEPTED' WHEN 'FOLLOW_UP' THEN 'FOLLOW_UP_DUE' ELSE status END WHERE status IN ('PENDING','CONTACTED','FOLLOW_UP')");
   db.exec("DELETE FROM Facility");
   db.exec("DELETE FROM Referral WHERE id LIKE 'demo-%'");
   const insert = db.prepare(`INSERT OR REPLACE INTO Facility (id,name,type,distanceKm,services,available,hours,address,phone,latitude,longitude,capacityData,lastUpdated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
@@ -20,7 +20,7 @@ export function initializeDatabase() {
     ["demo-1048", "Demo patient A", "ASHA-assisted intake", "Public Health Centre", "CHILD_HEALTH", "URGENT", "CREATED", "Visit a suitable public facility today.", now, "RCC-1048", "Child fever & cough", tomorrow, now],
     ["demo-1047", "Demo patient B", "ASHA-assisted intake", "Public Health Centre", "MATERNITY", "ROUTINE", "ACCEPTED", "Schedule antenatal check-up.", now, "RCC-1047", "Antenatal check-up", tomorrow, now],
     ["demo-1046", "Demo patient C", "ASHA-assisted intake", "K.K.Nagar Dispensary and Polyclinic", "PRIMARY_CARE", "ROUTINE", "ARRIVED", "Complete blood pressure review.", now, "RCC-1046", "Blood pressure review", tomorrow, now],
-    ["demo-1045", "Demo patient D", "ASHA-assisted intake", "Gopalapuram Dispensary", "PRIMARY_CARE", "URGENT", "FOLLOW_UP", "ASHA call-back required.", now, "RCC-1045", "Persistent stomach pain", tomorrow, now],
+    ["demo-1045", "Demo patient D", "ASHA-assisted intake", "Gopalapuram Dispensary", "PRIMARY_CARE", "URGENT", "FOLLOW_UP_DUE", "ASHA call-back required.", now, "RCC-1045", "Persistent stomach pain", tomorrow, now],
     ["demo-1041", "Demo patient E", "ASHA-assisted intake", "Public Health Centre", "CHILD_HEALTH", "URGENT", "CREATED", "Route to available child-health service.", now, "RCC-1041", "Breathing concern", tomorrow, now],
     ["demo-1039", "Demo patient F", "ASHA-assisted intake", "Public Health Centre", "CHILD_HEALTH", "ROUTINE", "CREATED", "Confirm immunisation service.", now, "RCC-1039", "Immunisation query", tomorrow, now]
   ];

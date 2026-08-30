@@ -36,6 +36,10 @@ test("judge-demo mixed Tamil-English convulsion is emergency", () => {
   assert.equal(result.language, "mixed");
   assert.equal(result.triggeredRules[0].triggeredRuleId, "EMR_CONVULSION");
 });
+test("child inability to drink and repeated vomiting are deterministic danger signs", () => {
+  assert.equal(assessNeed("My child has fever and cannot drink.").triggeredRules[0].triggeredRuleId, "EMR_CHILD_UNABLE_TO_DRINK");
+  assert.equal(assessNeed("My child has fever and is vomiting everything.").triggeredRules[0].triggeredRuleId, "EMR_CHILD_VOMITS_EVERYTHING");
+});
 test("pregnancy warning concern is urgent with a guideline reference", () => {
   const result = assessNeed("pregnant with bleeding");
   assert.equal(result.urgency, "URGENT");

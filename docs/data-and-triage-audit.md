@@ -8,12 +8,12 @@ The same downloaded directory had **zero valid coordinates for all Tamil Nadu re
 
 - Chengalpattu official-directory record count: **0**
 - Imported curated official records: **20**
-- Route-eligible records with valid, separately sourced coordinates: **5**
+- Coordinate-enriched records: **6**. Routing is restricted to the 75 km Chennai demo region, so the two Kanniyakumari records remain documented but are excluded from this local journey.
 - Capability labels: each service is either `SOURCED_FROM_DIRECTORY` (the directory's `Specialties`/`Facilities` text explicitly supports it) or `INFERRED_FROM_FACILITY_TYPE` (a conservative routing fallback, never a verified capability).
 
 The official [Chengalpattu district hospitals page](https://chengalpattu.nic.in/public-utility-category/hospitals/) is a named-record reference but does not provide a downloadable service-level/coordinate directory. The data.gov.in page publishes the companion NIN facility URL (`https://info.nhp.gov.in/api/nin-health-facilities.csv`), but it was unreachable when checked on 2026-08-30. No records or coordinates were invented to fill those gaps.
 
-Coordinates, road time, availability, waiting time and beds are not live government data. The five displayed coordinates have individual public-map citations in `/api/facility-data`; travel is calculated from a labelled demo origin; capacity is explicitly synthetic.
+Coordinates, road time, availability, waiting time and beds are not live government data. The six enriched coordinates have individual public-map citations in `/api/facility-data`; travel is calculated from a labelled demo origin; capacity is explicitly synthetic.
 
 ## Triage boundary
 
@@ -39,7 +39,7 @@ Every non-routine result returns `triggeredRuleId`, finding, guideline reference
 
 `packages/shared/src/routing.ts` is the deterministic matching engine. It maps the completed triage assessment to a small service plan: `PRIMARY_CARE`, `CHILD_HEALTH`, `MATERNITY`, or `EMERGENCY`; emergency requests require emergency-capable care. Facility care levels are conservative: AAM/dispensary/PHC are primary; CHC is primary/secondary; district hospital is secondary/emergency.
 
-The engine filters invalid coordinates, unsuitable service support, and facilities below the needed level before ranking. Configurable weights are service match **55** (+8 exact match), care-level match **30**, availability **20** (limited **8**), inferred-capability penalty **-4**, and distance **-1.2 per km**. Thus service/care suitability always outweighs proximity. Every result returns source provenance, simulated availability (`SIMULATED_FOR_PROTOTYPE`), human-readable reasons, and a recommendation status.
+The engine filters invalid coordinates, facilities outside the 75 km demo region, unsuitable service support, and facilities below the needed level before ranking. Exact service matches form a hard **1000-point** tier; acceptable primary-care fallbacks use a **500-point** tier. Sourced capability adds **100**, care-level fit **50**, available status **25** (limited **10**), and distance subtracts **1 per km**. Thus an exact service match cannot be displaced by a merely closer fallback. Every result returns the matched service, whether it is a fallback, provenance, simulated availability (`SIMULATED_FOR_PROTOTYPE`), human-readable reasons, and a recommendation status.
 
 If the highest-scoring suitable facility is unavailable, the decision preserves it as the original facility, selects the next suitable available option, and returns `REQUIRED_SERVICE_UNAVAILABLE` with an explanation. The referral stores the routing request ID, source mode, selected facility type, explanation, reroute flag, prior facility, and non-sensitive routing audit. The existing staff workflow reads the same referral table.
 
