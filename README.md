@@ -21,6 +21,8 @@ The first run creates a local SQLite database and seeds a Tamil Nadu demonstrati
 
 Choose Citizen or ASHA-assisted mode, select Tamil or English, enter a need such as `My child has fever and cough for two days`, answer the safety questions, confirm the bounded assessment, choose a facility, then create a continuity pass. The Care Route shows exactly how the stated need became a required service and care level.
 
+For Tamil speech input, use Chrome or Edge on `localhost`, select **தமிழில் பேசுங்கள்**, allow microphone access, and speak after the listening message appears. Recognition is explicitly configured for Tamil (`ta-IN`) and writes the transcript into the editable intake box. Browser speech recognition may require connectivity; typed Tamil remains the offline fallback.
+
 On the follow-up screen, refresh the shared referral status or report whether care was reached. Outcomes such as “service not available” become non-identifying service-gap events in Staff View. To demonstrate resilience, switch offline in browser developer tools: the current journey, referral and follow-up actions persist in IndexedDB and sync idempotently when connectivity returns.
 
 Staff View includes real counts derived from the local prototype database, recent service gaps, referral history, and a clearly labelled **prototype capacity control**. Making a service unavailable creates a reroute recommendation for affected referrals; it never silently replaces a citizen's confirmed destination.

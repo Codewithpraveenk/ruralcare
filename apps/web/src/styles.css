@@ -1023,6 +1023,34 @@ nav button:hover {
   background: #e5f0ed;
   color: #17645e;
 }
+.voice-inputs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.input-actions .tamil-voice {
+  border: 1px solid #98c8be;
+  background: #dff4ee;
+  color: #075f56;
+}
+.input-actions .tamil-voice.listening {
+  background: #fff1cf;
+  border-color: #e1a72f;
+  color: #775000;
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+.input-actions .english-voice {
+  background: transparent;
+  border: 1px solid #b9d3cd;
+  color: #17645e;
+}
+.input-actions button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+@keyframes voice-pulse {
+  50% { box-shadow: 0 0 0 5px rgba(225, 167, 47, .16); }
+}
 .safety-strip {
   display: flex;
   gap: 11px;
@@ -1701,6 +1729,10 @@ nav button:hover {
   .input-actions button,
   .flow-actions button {
     justify-content: center;
+  }
+  .voice-inputs,
+  .voice-inputs button {
+    width: 100%;
   }
   .timeline > div {
     grid-template-columns: 1fr;

@@ -1648,6 +1648,7 @@ function App() {
   const [selected, setSelected] = useState<FacilityCandidate | null>(null);
   const [currentReferral, setCurrentReferral] = useState<Record<string, any> | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
+  const [voiceState, setVoiceState] = useState<"IDLE" | "LISTENING" | "PROCESSING">("IDLE");
   const [patientLabel, setPatientLabel] = useState("Demo patient");
   const [notice, setNotice] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
@@ -1683,8 +1684,8 @@ function App() {
       removeEventListener("offline", off);
     };
   }, []);
-  useEffect(()=>{loadWorkflow<any>().then(saved=>{if(saved){setSourceMode(saved.sourceMode||"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[]);
-  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow({sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
+  useEffect(()=>{loadWorkflow<any>().then(saved=>{if(saved){setLanguage(saved.language||"en");setSourceMode(saved.sourceMode||"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[]);
+  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow({language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,language,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
   useEffect(()=>{if(!online)return;setSyncState("SYNCING");pendingActions().then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch{setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online]);
   useEffect(() => {
     if (!online) return;
@@ -1792,19 +1793,29 @@ function App() {
     setView("followup");
   }
   async function refreshReferral(){if(!currentReferral||String(currentReferral.id).startsWith("LOCAL-"))return setNotice("This continuity pass is waiting to sync.");try{const result=await request(`/api/referrals/${currentReferral.id}`);setCurrentReferral(result.referral);setNotice("Latest staff status loaded.");}catch{setNotice("Could not refresh while offline.");}}
+  async function openCareJourney(){if(!currentReferral){setView("input");return;}setView("followup");if(online)await refreshReferral();}
   async function confirmReroute(){if(!currentReferral)return;try{const result=await request(`/api/referrals/${currentReferral.id}/reroute/confirm`,{method:"POST"});setCurrentReferral(result.referral);setNotice("Alternative public facility confirmed. Referral history was preserved.");}catch{setNotice("Reroute confirmation needs a connection. Your original destination is unchanged.");}}
   async function submitFollowUp(outcome:"CARE_REACHED"|"COULD_NOT_REACH"|"SERVICE_NOT_AVAILABLE"|"FOLLOW_UP_NEEDED") {if(!currentReferral)return;const clientId=crypto.randomUUID(),body={clientId,outcome,note:followUpNote,sourceMode};const path=`/api/referrals/${currentReferral.id}/follow-up`;try{const result=await request(path,{method:"POST",body:JSON.stringify(body)});setCurrentReferral(result.referral?.referral||currentReferral);setSyncState("SYNCED");setNotice(outcome==="CARE_REACHED"?"Care reached and continuity completed.":"Follow-up outcome shared with Staff View.");}catch{await queueAction({id:clientId,path,method:"POST",body});setSyncState("PENDING_SYNC");setNotice("Follow-up saved offline and waiting to sync.");}}
-  function voice() {
+  useEffect(()=>{if(view!=="followup"||!currentReferral||!online)return;const timer=window.setInterval(()=>{refreshReferral();},10000);return()=>window.clearInterval(timer);},[view,currentReferral?.id,online]);
+  function voice(spokenLanguage: "ta" | "en" = language) {
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Speech)
       return setNotice(
-        "Voice input is unavailable in this browser. Please type the need.",
+        "Speech recognition is unavailable here. Use current Chrome or Edge and allow microphone access, or type the need.",
       );
+    setLanguage(spokenLanguage);
     const recognition = new Speech();
-    recognition.lang = language === "ta" ? "ta-IN" : "en-IN";
-    recognition.onresult = (event: any) =>
-      setMessage(event.results[0][0].transcript);
-    recognition.start();
+    recognition.lang = spokenLanguage === "ta" ? "ta-IN" : "en-IN";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    const existing=message.trim();
+    recognition.onstart=()=>{setVoiceState("LISTENING");setNotice(spokenLanguage==="ta"?"கேட்கிறேன்… தமிழில் தெளிவாக பேசுங்கள்.":"Listening… speak clearly.");};
+    recognition.onspeechend=()=>{setVoiceState("PROCESSING");recognition.stop();};
+    recognition.onresult=(event:any)=>{let transcript="";for(let index=event.resultIndex;index<event.results.length;index+=1)transcript+=event.results[index][0].transcript;setMessage(`${existing}${existing&&transcript?" ":""}${transcript}`.trim());};
+    recognition.onerror=(event:any)=>{setVoiceState("IDLE");const errors:Record<string,string>={"not-allowed":"Microphone permission was blocked. Allow microphone access in the address bar and try again.","no-speech":"No speech was detected. Tap the Tamil microphone and speak closer to the device.","audio-capture":"No working microphone was found.",network:"Speech recognition needs connectivity in this browser. Typed Tamil still works offline."};setNotice(errors[event.error]||"Speech recognition stopped. Please try again or type the need.");};
+    recognition.onend=()=>{setVoiceState("IDLE");};
+    try{recognition.start();}catch{setVoiceState("IDLE");setNotice("The microphone is already starting. Please wait and try once more.");}
   }
   const standardCard = (children: React.ReactNode) => (
     <section className="flow-card pathway-card">{children}</section>
@@ -1824,7 +1835,7 @@ function App() {
         <nav>
           <button
             className={view !== "dashboard" ? "active" : ""}
-            onClick={() => setView("input")}
+            onClick={openCareJourney}
           >
             <Sparkles /> Care pathway
           </button>
@@ -1934,9 +1945,12 @@ function App() {
                   }
                 />
                 <div className="input-actions">
-                  <IconButton Icon={Mic} className="ghost" onClick={voice}>
-                    Speak instead
-                  </IconButton>
+                  <div className="voice-inputs" aria-label="Voice input language">
+                    <IconButton Icon={Mic} className={`ghost tamil-voice ${voiceState!=="IDLE"?"listening":""}`} onClick={() => voice("ta")}>
+                      {voiceState!=="IDLE"&&language==="ta"?"கேட்கிறேன்…":"தமிழில் பேசுங்கள்"}
+                    </IconButton>
+                    <button className="english-voice" onClick={() => voice("en")} disabled={voiceState!=="IDLE"}>Speak English</button>
+                  </div>
                   <IconButton Icon={ArrowRight} onClick={start}>
                     {labels.next}
                   </IconButton>
@@ -2514,7 +2528,7 @@ function App() {
           </section>
         )}
         {view === "dashboard" && (
-          <LiveStaffDashboard onBack={() => setView("input")} />
+          <LiveStaffDashboard onBack={openCareJourney} />
         )}
       </main>
     </div>
