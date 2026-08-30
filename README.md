@@ -25,9 +25,34 @@ Milestone 4 uses a signed JWT inside an HTTP-only, SameSite cookie. Passwords ar
 
 Citizen registration never accepts a role and always creates a `CITIZEN`. ASHA, Doctor, Facility Admin, and compatibility Staff accounts are seeded for the prototype; public privileged registration is disabled. The login page separates Patient, ASHA, and Doctor/Facility portals before credentials are entered. Patients land on a dedicated home page with new-care, active-journey, and referral-history entry points.
 
+These demo accounts are rows in the same Prisma `User` table used for every account. Their passwords are bcrypt hashes and authentication always goes through the backend; the frontend contains no credential comparison or authenticated-user shortcut.
+
+## Google Identity Services setup
+
+Email/password authentication works without Google configuration. To enable the real **Continue with Google** button:
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/) and create or select a project.
+2. Configure the OAuth consent screen under Google Auth Platform. Add the test Google accounts you intend to use while the app remains in testing mode.
+3. Create an OAuth client with application type **Web application**.
+4. Add `http://localhost:5173` as an **Authorized JavaScript origin**. Add the deployed HTTPS frontend origin later.
+5. Copy the generated Web Client ID—never a client secret—into the root `.env` twice:
+
+   ```env
+   GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+   VITE_GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+   ```
+
+6. Restart `npm run dev`.
+
+This implementation uses the Google Identity Services ID-token button flow, so no redirect URI or Google client secret is required. The browser sends Google’s signed credential to `/api/auth/google`; the backend verifies its signature, issuer, expiration, audience and verified email with `google-auth-library`. RuralCare then creates its own httpOnly-cookie session. The raw Google credential and Google access tokens are never stored.
+
+If these variables are blank, the UI says “Google sign-in is not configured” and never simulates success.
+
 ## Useful commands
 
 - `npm run dev` - initialize SQLite and start API + PWA on fixed ports 8787 and 5173
+- `npm run db:push` - apply the safe local schema initializer without deleting referrals
+- `npm run db:seed` - provision hashed demo accounts through Prisma
 - `npm test` - safety and facility-matching unit tests
 - `npm run build` - type-check and create the production web build
 
@@ -73,6 +98,8 @@ For a judge-facing machine-readable explanation, call `GET /api/facility-data`. 
 - A child fever alone requests safety details before classification; it never automatically becomes urgent.
 - AI, when configured, only extracts validated structured facts. It never decides urgency, emergency routing, or facility ranking.
 - Do not put API keys in source code or commit `.env`.
+
+For same-origin or localhost development, use `COOKIE_SECURE=false` and `COOKIE_SAME_SITE=lax`. For an HTTPS deployment with frontend and API on different sites, use `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=none`, set `FRONTEND_ORIGIN` to the exact frontend origin, and set `VITE_API_URL` to the API origin. Credentialed CORS never uses a wildcard origin. `AUTH_SECRET` is mandatory in production.
 
 Read [the data and triage audit](docs/data-and-triage-audit.md) for source counts, Chengalpattu coverage, citations, simulated fields, and limitations.
 

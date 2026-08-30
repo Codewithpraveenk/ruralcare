@@ -47,6 +47,7 @@ import {
 } from "@ruralcare/shared";
 import { RouteMap } from "./RouteMap.tsx";
 import { AuthProvider, useAuth, type AuthUser } from "./AuthContext.tsx";
+import { GoogleSignInButton } from "./GoogleSignInButton.tsx";
 import { clearWorkflow, loadWorkflow, pendingActions, queueAction, removeAction, saveWorkflow, type SyncState } from "./offline-store.ts";
 import "./styles.css";
 
@@ -166,8 +167,9 @@ const localFacilities: Facility[] = [
   }),
 ];
 const queueKey = "ruralcare-referral-queue";
+const apiBase=(import.meta.env.VITE_API_URL||"").replace(/\/$/,"");
 async function request(path: string, init?: RequestInit) {
-  const response = await fetch(path, {
+  const response = await fetch(`${apiBase}${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...init,
@@ -1641,8 +1643,8 @@ const unavailableDemoFacility: Facility = withDistance({
 });
 function LoginScreen(){
   const{login,register,error,clearError}=useAuth();
-  const[portal,setPortal]=useState<"PATIENT"|"ASHA"|"CLINICAL">("PATIENT"),[mode,setMode]=useState<"login"|"register">("login"),[busy,setBusy]=useState(false),[identifier,setIdentifier]=useState("citizen.demo@ruralcare.local"),[password,setPassword]=useState("RuralCare@2026"),[name,setName]=useState(""),[confirmPassword,setConfirmPassword]=useState("");
-  const choose=(next:"PATIENT"|"ASHA"|"CLINICAL")=>{setPortal(next);setMode("login");setIdentifier(next==="PATIENT"?"citizen.demo@ruralcare.local":next==="ASHA"?"asha.demo@ruralcare.local":"doctor.demo@ruralcare.local");setPassword("RuralCare@2026");clearError();};
+  const[portal,setPortal]=useState<"PATIENT"|"ASHA"|"CLINICAL">("PATIENT"),[mode,setMode]=useState<"login"|"register">("login"),[busy,setBusy]=useState(false),[identifier,setIdentifier]=useState(""),[password,setPassword]=useState(""),[name,setName]=useState(""),[confirmPassword,setConfirmPassword]=useState("");
+  const choose=(next:"PATIENT"|"ASHA"|"CLINICAL")=>{setPortal(next);setMode("login");setIdentifier("");setPassword("");clearError();};
   const submit=async()=>{setBusy(true);try{if(mode==="login")await login(identifier,password);else await register({name,email:identifier,password,confirmPassword});}catch{/* safe message is exposed by AuthContext */}finally{setBusy(false);}};
   const title=portal==="PATIENT"?"Patient & family portal":portal==="ASHA"?"ASHA assisted-care portal":"Doctor & facility portal";
   return <main className="portal-auth-page">
@@ -1655,7 +1657,7 @@ function LoginScreen(){
         <label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} autoComplete={mode==="login"?"current-password":"new-password"} placeholder="At least 8 characters"/></label>
         {mode==="register"&&<label>Confirm password<input type="password" value={confirmPassword} onChange={event=>setConfirmPassword(event.target.value)} autoComplete="new-password"/></label>}
         {error&&<div className="auth-error" role="alert">{error}</div>}<button className="auth-submit" disabled={busy||!identifier.trim()||!password} onClick={submit}>{busy?"Please wait…":mode==="register"?"Create patient account":`Sign in to ${portal==="PATIENT"?"patient portal":portal==="ASHA"?"ASHA portal":"clinical workspace"}`}</button>
-        {mode==="login"&&<div className="demo-access"><b>Judge demo access</b><span>{identifier}</span><small>Password: RuralCare@2026</small>{portal==="CLINICAL"&&<button onClick={()=>setIdentifier(identifier.startsWith("admin")?"doctor.demo@ruralcare.local":"admin.demo@ruralcare.local")}>{identifier.startsWith("admin")?"Use Doctor demo":"Use Facility Admin demo"}</button>}</div>}
+        {portal==="PATIENT"&&mode==="login"&&<><div className="auth-divider"><span>OR</span></div><GoogleSignInButton/></>}
         <p className="auth-note">Synthetic prototype accounts · no ABHA or government identity claim</p>
       </div>
     </section>

@@ -26,13 +26,15 @@ model User {
   name String
   email String? @unique
   phone String? @unique
-  passwordHash String
+  passwordHash String?
+  googleSub String? @unique
+  avatarUrl String?
   role String
   facilityId String?
   preferredLanguage String @default("en")
   village String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt String
+  updatedAt String
 }
 
 model Referral {
