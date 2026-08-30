@@ -66,22 +66,34 @@ type StaffCase = {
 };
 const scenarios = [
   {
-    label: "Child fever",
-    tamil: "குழந்தைக்கு காய்ச்சல்",
-    message: "My child has fever and cough for two days",
+    label: "Fever · needs answers",
+    tamil: "Expected: MORE INFORMATION",
+    message: "My child has mild fever since this morning.",
     Icon: HeartPulse,
   },
   {
-    label: "Pregnancy care",
-    tamil: "கர்ப்ப கால பராமரிப்பு",
-    message: "I am pregnant and need a check-up",
+    label: "Child fever · stable",
+    tamil: "Expected: ROUTINE",
+    message: "My 8-year-old child has mild fever since this morning. The child is drinking well, awake, has no vomiting, no seizure, no breathing difficulty and no stiff neck.",
+    Icon: ShieldCheck,
+  },
+  {
+    label: "Primary-care reroute",
+    tamil: "Expected: ROUTINE + REROUTE",
+    message: "I am an adult with a mild headache since this morning. I am awake and have no breathing difficulty, no confusion and no severe bleeding.",
+    Icon: Route,
+  },
+  {
+    label: "Pregnancy warning",
+    tamil: "Expected: URGENT",
+    message: "I am pregnant and have bleeding, but I am awake and breathing normally.",
     Icon: CalendarDays,
   },
   {
-    label: "General check-up",
-    tamil: "பொது பரிசோதனை",
-    message: "I need a general health check-up",
-    Icon: Stethoscope,
+    label: "Mixed-language danger sign",
+    tamil: "Expected: EMERGENCY",
+    message: "குழந்தைக்கு fever இருக்கு and வலிப்பு ஏற்பட்டது.",
+    Icon: AlertTriangle,
   },
 ];
 const demoOrigin = { latitude: 13.041, longitude: 80.224 };
@@ -2138,11 +2150,11 @@ function App() {
             <div className="facility-list">
               {candidates.map((facility, index) => (
                 <article
-                  className={`facility-card ${facility.available ? "" : "unavailable-card"}`}
+                  className={`facility-card ${facility.serviceCapacity?.status === "UNAVAILABLE" || !facility.available ? "unavailable-card" : ""}`}
                   key={facility.id}
                 >
                   <div className="rank">
-                    {facility.available
+                    {facility.serviceCapacity?.status !== "UNAVAILABLE" && facility.available
                       ? `0${facility.ranking || index + 1}`
                       : "—"}
                   </div>

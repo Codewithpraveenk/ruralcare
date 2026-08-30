@@ -21,8 +21,20 @@ test("mild child fever requests safety details rather than becoming urgent", () 
   assert.ok(result.missingInformation.some((item) => item.includes("drink")));
 });
 test("child fever with reassuring answers is routine", () => {
-  const result = assessNeed("child has fever, drinking well, no vomiting, no seizure, no breathing difficulty, no stiff neck, awake");
+  const result = assessNeed("My 8-year-old child has mild fever since this morning. The child is drinking well, awake, has no vomiting, no seizure, no breathing difficulty and no stiff neck.");
   assert.equal(result.urgency, "ROUTINE");
+});
+test("judge-demo child fever alone remains insufficient, never urgent", () => {
+  assert.equal(assessNeed("My child has mild fever since this morning.").urgency, "INSUFFICIENT_INFORMATION");
+});
+test("judge-demo adult mild headache is routine", () => {
+  assert.equal(assessNeed("I am an adult with a mild headache since this morning. I am awake and have no breathing difficulty, no confusion and no severe bleeding.").urgency, "ROUTINE");
+});
+test("judge-demo mixed Tamil-English convulsion is emergency", () => {
+  const result = assessNeed("குழந்தைக்கு fever இருக்கு and வலிப்பு ஏற்பட்டது.");
+  assert.equal(result.urgency, "EMERGENCY");
+  assert.equal(result.language, "mixed");
+  assert.equal(result.triggeredRules[0].triggeredRuleId, "EMR_CONVULSION");
 });
 test("pregnancy warning concern is urgent with a guideline reference", () => {
   const result = assessNeed("pregnant with bleeding");

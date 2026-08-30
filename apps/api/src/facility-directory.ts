@@ -50,7 +50,7 @@ const shiftAvailability: Record<string, { available: boolean; note: string }> = 
 
 const syntheticCapacity: Record<string, Partial<Record<Service, ServiceCapacity>>> = {
   "public-health-centre-west-mambalam": {
-    PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 18, availableBeds: 4, note: "General OPD ready in the synthetic demo shift" },
+    PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "General OPD marked unavailable for the deterministic rerouting demo" },
     CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 25, availableBeds: 2, note: "Child-health desk available in the synthetic demo shift" },
     MATERNITY: { status: "LIMITED", estimatedWaitMinutes: 45, availableBeds: 1, note: "One observation bed shown for the synthetic demo" }
   },
