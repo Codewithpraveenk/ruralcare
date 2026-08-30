@@ -20,6 +20,7 @@ import {
   Navigation,
   PhoneCall,
   Route,
+  RotateCcw,
   SearchCheck,
   ShieldCheck,
   Sparkles,
@@ -36,8 +37,10 @@ import {
   type Assessment,
   type Facility,
   type RouteDecision,
+  type Service,
 } from "@ruralcare/shared";
 import { RouteMap } from "./RouteMap.tsx";
+import { clearWorkflow, loadWorkflow, pendingActions, queueAction, removeAction, saveWorkflow, type SyncState } from "./offline-store.ts";
 import "./styles.css";
 
 type View =
@@ -512,6 +515,11 @@ type CoordinationCase = {
   careNeed: string;
   urgency: "EMERGENCY" | "URGENT" | "ROUTINE";
   facility: string;
+  service?: string;
+  sourceMode?: "CITIZEN" | "ASHA_ASSISTED";
+  rerouted?: boolean;
+  rerouteStatus?: string;
+  recommendedFacility?: string;
   stage: string;
   status: "CREATED" | "ACCEPTED" | "ARRIVED" | "FOLLOW_UP_DUE" | "COMPLETED";
   followUpDue?: string;
@@ -524,13 +532,18 @@ type Coordination = {
     urgent: number;
     pending: number;
     followups: number;
+    rerouted: number;
+    serviceGaps: number;
   };
   demand: { service: string; count: number }[];
-  capacityAlerts: {
+  capacityAlerts?: {
     title: string;
     affected: { demoId: string; careNeed: string }[];
     alternatives: { name: string; distanceKm: number; hours: string }[];
   }[];
+  serviceAccess: { service: string; requests: number; reroutes: number; accessGaps: number }[];
+  recentGaps: { service: string; facility: string; reason: string; count: number }[];
+  capacity: Array<Record<string, unknown>>;
   activity: {
     demoId: string;
     stage: string;
@@ -559,7 +572,7 @@ const fallbackCoordination: Coordination = {
         : (item.status.toUpperCase() as CoordinationCase["status"]),
     updatedAt: new Date().toISOString(),
   })),
-  totals: { incoming: 12, urgent: 3, pending: 2, followups: 3 },
+  totals: { incoming: 6, urgent: 3, pending: 2, followups: 1, rerouted: 0, serviceGaps: 0 },
   demand: [
     { service: "General medicine", count: 8 },
     { service: "Maternal care", count: 4 },
@@ -583,6 +596,7 @@ const fallbackCoordination: Coordination = {
       ],
     },
   ],
+  serviceAccess: [], recentGaps: [], capacity: [],
   activity: [
     {
       demoId: "RCC-1047",
@@ -603,10 +617,14 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
   const [filter, setFilter] = useState<"All" | "Priority" | "Follow-up">("All");
   const [alternatives, setAlternatives] = useState(false);
   const [message, setMessage] = useState("");
+  const [capacityFacilities, setCapacityFacilities] = useState<Facility[]>([]);
+  const [capacityFacilityId, setCapacityFacilityId] = useState("");
+  const [capacityService, setCapacityService] = useState<Service>("PRIMARY_CARE");
   const refresh = async () => {
     try {
       const result = await request("/api/coordination");
       setData(result);
+      const capacityResult=await request("/api/capacity");setCapacityFacilities(capacityResult.facilities);if(!capacityFacilityId&&capacityResult.facilities[0])setCapacityFacilityId(capacityResult.facilities[0].id);
       setMessage("");
     } catch {
       setMessage(
@@ -614,6 +632,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
       );
     }
   };
+  const updateCapacity=async(availability:"AVAILABLE"|"LIMITED"|"UNAVAILABLE")=>{if(!capacityFacilityId)return;try{const result=await request(`/api/capacity/${capacityFacilityId}/${capacityService}`,{method:"PUT",body:JSON.stringify({availability})});setMessage(`${capacityService.replaceAll("_"," ")} marked ${availability.toLowerCase()} for the prototype. ${result.recommendations.length} referral reroute recommendation(s) created.`);await refresh();}catch{setMessage("Capacity changes require a connection and were not saved.");}};
   const syncActions = async () => {
     const queued = JSON.parse(localStorage.getItem(staffQueueKey) || "[]");
     if (!queued.length) return;
@@ -687,7 +706,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
       ? filter === "All" || item.urgency !== "ROUTINE"
       : item.status === "FOLLOW_UP_DUE",
   );
-  const alert = data.capacityAlerts[0];
+  const alert = data.capacityAlerts?.[0];
   return (
     <section className="staff-workspace">
       <div className="staff-heading">
@@ -756,7 +775,10 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
           </div>
           <em>Today + tomorrow</em>
         </article>
+        <article><span className="summary-icon gold"><Route /></span><div><b>{data.totals.rerouted}</b><small>Rerouted cases</small></div><em>Stored decisions</em></article>
+        <article><span className="summary-icon red"><CircleAlert /></span><div><b>{data.totals.serviceGaps}</b><small>Service-gap events</small></div><em>Access feedback</em></article>
       </div>
+      <article className="capacity-control"><div><p className="eyebrow">PROTOTYPE CAPACITY CONTROL</p><h2>Change simulated service availability</h2><small>Not live government data. Changes persist and use the real routing engine.</small></div><select value={capacityFacilityId} onChange={event=>setCapacityFacilityId(event.target.value)}>{capacityFacilities.map(facility=><option key={facility.id} value={facility.id}>{facility.name}</option>)}</select><select value={capacityService} onChange={event=>setCapacityService(event.target.value as Service)}>{(["PRIMARY_CARE","CHILD_HEALTH","MATERNITY","EMERGENCY"] as Service[]).map(service=><option key={service} value={service}>{service.replaceAll("_"," ")}</option>)}</select><div><button onClick={()=>updateCapacity("AVAILABLE")}>Available</button><button onClick={()=>updateCapacity("LIMITED")}>Limited</button><button onClick={()=>updateCapacity("UNAVAILABLE")}>Unavailable</button></div></article>
       <div className="staff-grid">
         <article className="active-cases">
           <div className="panel-title">
@@ -797,6 +819,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
                 <div>
                   <small>Recommended facility</small>
                   <b>{item.facility}</b>
+                  <small>{item.sourceMode === "CITIZEN" ? "Citizen" : "ASHA-assisted"}{item.rerouted ? " · Rerouted" : ""}{item.rerouteStatus ? ` · ${item.rerouteStatus.replaceAll("_"," ")}` : ""}</small>
                 </div>
                 <div>
                   <span
@@ -920,6 +943,7 @@ function LiveStaffDashboard({ onBack }: { onBack: () => void }) {
             prevalence data.
           </p>
         </article>
+        <article className="gap-overview"><p className="eyebrow">RECENT ACCESS GAPS</p><h2>Where care access is failing</h2>{data.recentGaps.length===0?<p className="small">No service-gap events recorded yet.</p>:data.recentGaps.map(item=><div className="gap-row" key={`${item.service}-${item.facility}-${item.reason}`}><b>{item.service}</b><span>{item.facility}</span><span>{item.reason}</span><em>{item.count}</em></div>)}</article>
         <article className="recent-activity">
           <p className="eyebrow">RECENT REFERRAL ACTIVITY</p>
           <h2>Continuity events</h2>
@@ -1610,6 +1634,9 @@ const unavailableDemoFacility: Facility = withDistance({
 function App() {
   const [view, setView] = useState<PathView>("input");
   const [language, setLanguage] = useState<"en" | "ta">("en");
+  const [sourceMode, setSourceMode] = useState<"CITIZEN" | "ASHA_ASSISTED">("CITIZEN");
+  const [syncState, setSyncState] = useState<SyncState>("SYNCED");
+  const [workflowLoaded, setWorkflowLoaded] = useState(false);
   const [message, setMessage] = useState("");
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [candidates, setCandidates] = useState<FacilityCandidate[]>([]);
@@ -1619,6 +1646,8 @@ function App() {
   const [routeDecision, setRouteDecision] = useState<RouteDecision | null>(null);
   const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, "YES" | "NO">>({});
   const [selected, setSelected] = useState<FacilityCandidate | null>(null);
+  const [currentReferral, setCurrentReferral] = useState<Record<string, any> | null>(null);
+  const [followUpNote, setFollowUpNote] = useState("");
   const [patientLabel, setPatientLabel] = useState("Demo patient");
   const [notice, setNotice] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
@@ -1654,6 +1683,9 @@ function App() {
       removeEventListener("offline", off);
     };
   }, []);
+  useEffect(()=>{loadWorkflow<any>().then(saved=>{if(saved){setSourceMode(saved.sourceMode||"CITIZEN");setMessage(saved.message||"");setAssessment(saved.assessment||null);setRouteDecision(saved.routeDecision||null);setCandidates(saved.candidates||[]);setRecommended(saved.recommended||null);setSelected(saved.selected||null);setCurrentReferral(saved.currentReferral||null);setView(saved.view||"input");setSyncState(saved.syncState||"LOCAL_ONLY");}setWorkflowLoaded(true);}).catch(()=>setWorkflowLoaded(true));},[]);
+  useEffect(()=>{if(!workflowLoaded)return;saveWorkflow({sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState}).catch(()=>undefined);},[workflowLoaded,sourceMode,message,assessment,routeDecision,candidates,recommended,selected,currentReferral,view,syncState]);
+  useEffect(()=>{if(!online)return;setSyncState("SYNCING");pendingActions().then(async actions=>{for(const action of actions){try{const result=await request(action.path,{method:action.method,body:JSON.stringify(action.body)});if(action.path==="/api/referrals")setCurrentReferral(result.referral);await removeAction(action.id);}catch{setSyncState("SYNC_FAILED");return;}}setSyncState("SYNCED");}).catch(()=>setSyncState("SYNC_FAILED"));},[online]);
   useEffect(() => {
     if (!online) return;
     const queued = JSON.parse(localStorage.getItem(queueKey) || "[]");
@@ -1725,16 +1757,18 @@ function App() {
   }
   async function createReferral() {
     if (!assessment || !selected) return;
+    const clientId=crypto.randomUUID();
     const body = {
+      clientId,
       patientLabel,
-      sourceFacility: "ASHA-assisted pathway",
+      sourceFacility: sourceMode === "ASHA_ASSISTED" ? "ASHA-assisted pathway" : "Citizen pathway",
       destinationFacility: selected.name,
       service: assessment.service,
       urgency: assessment.urgency,
       nextAction: assessment.nextAction,
       careNeed: assessment.symptoms.join(", "),
       requestId: routeDecision?.requestId,
-      sourceMode: "ASHA_ASSISTED",
+      sourceMode,
       selectedFacilityType: selected.type,
       routingExplanation: routeDecision?.explanation || selected.rerouteReason || "Selected based on service suitability, care level, distance, and prototype availability.",
       rerouted: routeDecision?.rerouted || false,
@@ -1749,12 +1783,17 @@ function App() {
       setNotice(
         `Continuity pass ${result.referral.demoId} created for the selected public-care pathway.`,
       );
+      setCurrentReferral(result.referral); setSyncState("SYNCED");
     } catch {
-      queueReferral(body);
+      await queueAction({id:clientId,path:"/api/referrals",method:"POST",body});
+      setCurrentReferral({id:clientId,demoId:`LOCAL-${clientId.slice(0,6).toUpperCase()}`,status:"CREATED",...body}); setSyncState("PENDING_SYNC");
       setNotice("Offline: continuity pass safely queued on this device.");
     }
     setView("followup");
   }
+  async function refreshReferral(){if(!currentReferral||String(currentReferral.id).startsWith("LOCAL-"))return setNotice("This continuity pass is waiting to sync.");try{const result=await request(`/api/referrals/${currentReferral.id}`);setCurrentReferral(result.referral);setNotice("Latest staff status loaded.");}catch{setNotice("Could not refresh while offline.");}}
+  async function confirmReroute(){if(!currentReferral)return;try{const result=await request(`/api/referrals/${currentReferral.id}/reroute/confirm`,{method:"POST"});setCurrentReferral(result.referral);setNotice("Alternative public facility confirmed. Referral history was preserved.");}catch{setNotice("Reroute confirmation needs a connection. Your original destination is unchanged.");}}
+  async function submitFollowUp(outcome:"CARE_REACHED"|"COULD_NOT_REACH"|"SERVICE_NOT_AVAILABLE"|"FOLLOW_UP_NEEDED") {if(!currentReferral)return;const clientId=crypto.randomUUID(),body={clientId,outcome,note:followUpNote,sourceMode};const path=`/api/referrals/${currentReferral.id}/follow-up`;try{const result=await request(path,{method:"POST",body:JSON.stringify(body)});setCurrentReferral(result.referral?.referral||currentReferral);setSyncState("SYNCED");setNotice(outcome==="CARE_REACHED"?"Care reached and continuity completed.":"Follow-up outcome shared with Staff View.");}catch{await queueAction({id:clientId,path,method:"POST",body});setSyncState("PENDING_SYNC");setNotice("Follow-up saved offline and waiting to sync.");}}
   function voice() {
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Speech)
@@ -1881,6 +1920,10 @@ function App() {
                   {labels.prompt}
                   <span>Tamil, English, or mixed language</span>
                 </label>
+                <div className="mode-choice" aria-label="Who is using RuralCare">
+                  <button className={sourceMode === "CITIZEN" ? "selected" : ""} onClick={() => setSourceMode("CITIZEN")}><UsersRound size={17}/><span><b>Citizen / family</b><small>Using RuralCare for myself or family</small></span></button>
+                  <button className={sourceMode === "ASHA_ASSISTED" ? "selected" : ""} onClick={() => setSourceMode("ASHA_ASSISTED")}><Stethoscope size={17}/><span><b>ASHA-assisted</b><small>Frontline worker assisting a citizen</small></span></button>
+                </div>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -2141,6 +2184,12 @@ function App() {
               <div className="matching-chip">
                 <GitCompareArrows /> Service-aware comparison
               </div>
+            </div>
+            <div className="translation-card" aria-label="Need-to-service translation">
+              <div><span>{sourceMode === "ASHA_ASSISTED" ? "ASHA recorded" : "Citizen said"}</span><b>“{message}”</b></div>
+              <div><span>RuralCare normalized</span><b>{assessment.service === "CHILD_HEALTH" ? "Stable child-health concern" : assessment.symptoms.join(", ")}</b></div>
+              <div><span>Deterministic safety result</span><b>{assessment.urgency}</b></div>
+              <div><span>Required service / care level</span><b>{routeDecision?.plan.requiredService.replaceAll("_", " ") || assessment.service.replaceAll("_", " ")} · {routeDecision?.plan.requiredCareLevel || "PRIMARY"}</b></div>
             </div>
             <RouteMap
               facilities={candidates}
@@ -2409,6 +2458,8 @@ function App() {
               Your continuity pass is created or safely queued. The Staff View
               can now coordinate the next hand-off.
             </p>
+            {currentReferral && <><div className="continuity-status"><div><span>CONTINUITY PASS</span><b>{currentReferral.demoId}</b></div><div><span>LATEST STATUS</span><b>{currentReferral.status}</b></div><div><span>SOURCE MODE</span><b>{sourceMode.replaceAll("_"," ")}</b></div><div><span>SYNC</span><b>{syncState.replaceAll("_"," ")}</b></div><IconButton Icon={RotateCcw} className="ghost" onClick={refreshReferral}>Refresh staff status</IconButton></div>{currentReferral.rerouteStatus==="REROUTE_RECOMMENDED"&&<div className="reroute-alert"><Route/><div><b>Service changed after your referral</b><p>Your original destination remains {currentReferral.destinationFacility}. Staff recommend {currentReferral.recommendedFacility}; confirm only if you accept this new route.</p><button onClick={confirmReroute}>Confirm alternative facility</button></div></div>}</>}
+            <div className="followup-outcome"><h2>Was care reached?</h2><p>Share a non-identifying access outcome so staff can coordinate follow-up and see service gaps.</p><textarea value={followUpNote} onChange={event=>setFollowUpNote(event.target.value)} maxLength={180} placeholder="Optional short access note (no medical details)"/><div><button onClick={()=>submitFollowUp("CARE_REACHED")}>Care reached</button><button onClick={()=>submitFollowUp("COULD_NOT_REACH")}>Could not reach</button><button onClick={()=>submitFollowUp("SERVICE_NOT_AVAILABLE")}>Service unavailable</button><button onClick={()=>submitFollowUp("FOLLOW_UP_NEEDED")}>Follow-up needed</button></div></div>
             <div className="timeline">
               <div>
                 <span>NOW</span>

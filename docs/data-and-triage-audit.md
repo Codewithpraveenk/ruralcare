@@ -44,3 +44,20 @@ The engine filters invalid coordinates, facilities outside the 75 km demo region
 If the highest-scoring suitable facility is unavailable, the decision preserves it as the original facility, selects the next suitable available option, and returns `REQUIRED_SERVICE_UNAVAILABLE` with an explanation. The referral stores the routing request ID, source mode, selected facility type, explanation, reroute flag, prior facility, and non-sensitive routing audit. The existing staff workflow reads the same referral table.
 
 RuralCare Connect is an AI-assisted care-navigation and triage-support prototype, not a medical diagnosis system. Real facility identity/location data is used where sourced. Current service availability, queues, beds and doctor availability are simulated for prototype demonstration.
+
+## Continuity and public-health feedback (Milestone 3)
+
+- A journey records whether it was entered by a citizen or with ASHA assistance. This is workflow context, not authentication.
+- The UI exposes the translation chain: citizen statement → normalized need → safety class → required service/care level.
+- Each referral has a stable client identifier, status history, follow-up outcomes and offline sync state. Duplicate queued submissions are rejected by unique idempotency keys.
+- Staff capacity changes are persisted locally and labelled `SIMULATED_FOR_PROTOTYPE`. When an already-confirmed destination becomes unavailable, the system stores `REROUTE_RECOMMENDED`; the original destination changes only after explicit confirmation (`REROUTE_CONFIRMED`).
+- No-match routing, all-unavailable routing, reported service unavailability and inability to reach care create non-identifying `ServiceGapEvent` records. Staff metrics are calculated from stored referrals and these events, with no hard-coded count offsets.
+- The browser stores the active workflow and queued referral/follow-up actions in IndexedDB. Queued actions expose `LOCAL_ONLY`, `PENDING_SYNC`, `SYNCING`, `SYNCED` or `SYNC_FAILED` state and retry on reconnection.
+- `FacilityDataProvider` isolates facility reads from routing and capacity logic. The current implementation is local; a future authorized integration can replace it without changing the triage boundary.
+
+### Still simulated or limited
+
+- Capacity changes are a staff-controlled demonstration and are not hospital updates.
+- There is no authenticated citizen identity, ASHA identity, government registry write-back, SMS delivery, ambulance dispatch or clinical follow-up integration.
+- Offline sync is single-device, best-effort prototype synchronization; conflict resolution across multiple devices is not implemented.
+- Service-gap summaries are operational signals only. They are not epidemiological surveillance, diagnosis, or evidence of facility performance.

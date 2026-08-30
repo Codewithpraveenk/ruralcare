@@ -19,7 +19,11 @@ The first run creates a local SQLite database and seeds a Tamil Nadu demonstrati
 
 ## Demo route
 
-Choose Tamil or English, enter a need such as `My child has fever and cough for two days`, confirm the bounded assessment, choose a facility, then create a referral. Switch to offline in browser developer tools and submit a referral to demonstrate the local queue; reconnect to sync it.
+Choose Citizen or ASHA-assisted mode, select Tamil or English, enter a need such as `My child has fever and cough for two days`, answer the safety questions, confirm the bounded assessment, choose a facility, then create a continuity pass. The Care Route shows exactly how the stated need became a required service and care level.
+
+On the follow-up screen, refresh the shared referral status or report whether care was reached. Outcomes such as “service not available” become non-identifying service-gap events in Staff View. To demonstrate resilience, switch offline in browser developer tools: the current journey, referral and follow-up actions persist in IndexedDB and sync idempotently when connectivity returns.
+
+Staff View includes real counts derived from the local prototype database, recent service gaps, referral history, and a clearly labelled **prototype capacity control**. Making a service unavailable creates a reroute recommendation for affected referrals; it never silently replaces a citizen's confirmed destination.
 
 ## Facility data provenance
 
@@ -47,3 +51,7 @@ For a judge-facing machine-readable explanation, call `GET /api/facility-data`. 
 - Do not put API keys in source code or commit `.env`.
 
 Read [the data and triage audit](docs/data-and-triage-audit.md) for source counts, Chengalpattu coverage, citations, simulated fields, and limitations.
+
+## Milestone 3 data boundary
+
+Facility records are accessed through a `FacilityDataProvider`. The current provider combines the imported/synthetic directory with locally stored prototype-capacity overrides. It is intentionally replaceable by an authorized government or facility feed later. Capacity, wait time, beds and availability remain simulated and must not be presented as live operational data.
