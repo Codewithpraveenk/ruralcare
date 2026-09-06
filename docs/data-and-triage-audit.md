@@ -2,18 +2,18 @@
 
 ## Data boundary
 
-This prototype uses a curated, 20-record public/government Tamil Nadu subset from the Government of India **National Hospital Directory**. The source was downloaded on 2026-08-30 from [data.gov.in](https://www.data.gov.in/resource/national-hospital-directory-geo-code-and-additional-parameters-updated-till-last-month). The downloaded national file contained 30,273 records; 2,399 had `State = Tamil Nadu`. The current local prototype imports the 20 curated records required for its route demo, of which five have separately cited coordinate enrichments.
+The active pilot directory is built from the official [Chengalpattu District hospital directory](https://chengalpattu.nic.in/public-utility-category/hospitals/) and [Chengalpattu Municipality hospital directory](https://www.tnurbantree.tn.gov.in/chengalpattu/hospitals/), retrieved on 2026-09-03. It replaces the earlier cross-district demo subset.
 
-The same downloaded directory had **zero valid coordinates for all Tamil Nadu records** and **zero records whose district was Chengalpattu/Chengalpet**. It retains older district naming such as Kanchipuram. Therefore the prototype reports:
+The prototype reports:
 
-- Chengalpattu official-directory record count: **0**
-- Imported curated official records: **20**
-- Coordinate-enriched records: **6**. Routing is restricted to the 75 km Chennai demo region, so the two Kanniyakumari records remain documented but are excluded from this local journey.
+- Imported official Chengalpattu records: **17**
+- Active routeable Chengalpattu records: **9**. Eight additional official identities are quarantined from routing until their street address and coordinates are verified.
+- Facility identities, official addresses and published phone numbers come from the Chengalpattu District and Chengalpattu Municipality websites. The previous mixed Chennai/Kanniyakumari demo directory is no longer active.
+- Service capability accounting is per service: **3 sourced service claims** and **30 conservative `INFERRED_FROM_FACILITY_TYPE` mappings** across the nine routeable facilities.
+- Availability, waits and available-bed counts are still explicitly `SIMULATED_FOR_PROTOTYPE`; no live HMIS or hospital operations feed is connected.
 - Capability labels: each service is either `SOURCED_FROM_DIRECTORY` (the directory's `Specialties`/`Facilities` text explicitly supports it) or `INFERRED_FROM_FACILITY_TYPE` (a conservative routing fallback, never a verified capability).
 
-The official [Chengalpattu district hospitals page](https://chengalpattu.nic.in/public-utility-category/hospitals/) is a named-record reference but does not provide a downloadable service-level/coordinate directory. The data.gov.in page publishes the companion NIN facility URL (`https://info.nhp.gov.in/api/nin-health-facilities.csv`), but it was unreachable when checked on 2026-08-30. No records or coordinates were invented to fill those gaps.
-
-Coordinates, road time, availability, waiting time and beds are not live government data. The six enriched coordinates have individual public-map citations in `/api/facility-data`; travel is calculated from a labelled demo origin; capacity is explicitly synthetic.
+Neither official page provides a downloadable coordinate or live operational feed. Coordinates are kept as separate public-map enrichments with evidence in `/api/facility-data`; straight-line distance and demo travel time are calculated from a labelled Madurantakam-area demo origin. The application does not represent these as live navigation.
 
 ## Triage boundary
 

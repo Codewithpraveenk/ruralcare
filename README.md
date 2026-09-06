@@ -9,6 +9,8 @@ An offline-capable SIH demonstration app for routing a rural citizen or ASHA wor
 3. In the VS Code terminal run `npm install` once, then run `npm run dev`.
 4. Open the local URL shown for `web` (normally `http://localhost:5173`).
 
+If RuralCare is already running in another terminal, `npm run dev` now reports the existing web and API addresses instead of failing with `Port 5173 is already in use`. If an unrelated application owns port 5173 or 8787, close that application and run the command again.
+
 The first run creates a local SQLite database and seeds a Tamil Nadu demonstration set. The running prototype uses Node's built-in SQLite driver for reliable zero-setup local execution; `apps/api/prisma/schema.prisma` is included as the portable schema for a future Prisma/PostgreSQL deployment. Use the **Staff dashboard** link to see the operational view.
 
 ## Demo authentication
@@ -53,20 +55,33 @@ If these variables are blank, the UI says “Google sign-in is not configured”
 - `npm run dev` - initialize SQLite and start API + PWA on fixed ports 8787 and 5173
 - `npm run db:push` - apply the safe local schema initializer without deleting referrals
 - `npm run db:seed` - provision hashed demo accounts through Prisma
-- `npm test` - safety and facility-matching unit tests
+- `npm test` - safety, facility-matching, API, authentication and offline unit/integration tests
+- `npm run test:e2e` - launch Chrome and verify patient, ASHA, doctor and staff portal journeys
 - `npm run build` - type-check and create the production web build
+
+## Multilingual triage evaluation corpus
+
+The repository includes a versioned synthetic regression corpus with 306 cases across 34 distinct scenarios: 102 English, 102 Tamil, and 102 Tanglish/mixed-language inputs. It covers routine, incomplete-information, urgent, emergency, direct-routing, and synthetic-unavailability rerouting behavior. Each semantic scenario is expressed as direct citizen speech, a polite request, and an ASHA intake note.
+
+Run `node --import tsx scripts/export-evaluation-corpus.mjs` to regenerate the CSV and JSON files in `data/evaluation`. The root test command evaluates every case against the deterministic triage and routing engines. Expected labels are authored safety-navigation expectations; they are not model-generated diagnoses. Passing this corpus demonstrates implementation consistency only—not clinical accuracy, sensitivity, specificity, or real-world validation.
+
+The judge-facing workbook is generated separately under `outputs` and includes a summary, all multilingual cases, routing outcomes, a codebook, and evidence references. The next safety gate before deployment is independent review by qualified Tamil-speaking clinicians and testing on independently authored cases.
 
 ## Demo route
 
 Choose Citizen or ASHA-assisted mode, select Tamil or English, enter a need such as `My child has fever and cough for two days`, answer the safety questions, confirm the bounded assessment, choose a facility, then create a continuity pass. The Care Route shows exactly how the stated need became a required service and care level.
 
-For reliable Tamil speech input (including Brave), copy `.env.example` to `.env`, add an `OPENAI_API_KEY`, and restart `npm run dev`. Select **தமிழில் பேசுங்கள்**, allow microphone access, speak, then press **நிறுத்தி எழுத்தாக்கவும்** (or wait for the 12-second automatic stop). The app records a short clip and displays an editable **We heard / நாங்கள் கேட்டது** transcript. The transcript enters intake only after the user confirms it; retry discards it. RuralCare does not persist the audio. Transcription requires connectivity; typed Tamil and deterministic fallback extraction remain available offline.
+Tamil and English voice input uses the browser Speech Recognition API first (`ta-IN` and `en-IN`), so it does not require OpenAI credits. Use current Chrome or Edge for the most reliable demo; Brave and Firefox may not expose compatible recognition. Select **தமிழில் பேசுங்கள்** or **Speak English**, allow microphone access, speak, then press Stop. RuralCare displays an editable **We heard / நாங்கள் கேட்டது** transcript and enters it into intake only after confirmation. The browser or operating-system speech service may require connectivity and processes the microphone audio according to its own browser policy; RuralCare does not persist that audio. If browser recognition is unavailable, the existing OpenAI transcription endpoint remains an optional configured fallback. Typed Tamil and deterministic extraction continue to work without either service.
 
 ## Multilingual AI intake boundary
 
 When `OPENAI_API_KEY` is configured, `/api/intake/extract` uses the Responses API with strict Structured Outputs to normalize English, Tamil, Tanglish, or mixed input. The request contains only the health-need text and preferred response language, sets `store: false`, and is validated again with a strict server schema. The schema deliberately has no diagnosis, prescription, urgency, or facility-choice field. Missing facts remain `null`, distinct from an explicit `false`.
 
 The default extraction model is configured by `OPENAI_EXTRACTION_MODEL` (currently `gpt-5.4-nano`). A timeout, invalid output, missing key, or network failure immediately activates the local rules fallback. After extraction, the existing deterministic triage engine alone produces the safety class. Child-fever follow-up uses a curated one-question-at-a-time registry, supports Yes / No / Not sure, stops on an emergency finding, never repeats a question, and asks at most five questions.
+
+## Bounded care-navigation guide
+
+Citizen and ASHA screens include a **Care guide** for questions about the current pathway, facility-ranking explanation, rerouting, and follow-up. Common demo questions are answered instantly by a curated Tamil/English local guide. Other questions may use `OPENAI_ASSISTANT_MODEL` when configured, with a five-second default timeout and automatic local fallback. The assistant cannot assign urgency, diagnose, prescribe, alter availability, or choose a facility; those decisions remain in the deterministic safety and routing engines. Only the question and non-clinical workflow state are sent, with `store: false`.
 
 On the follow-up screen, refresh the shared referral status or report whether care was reached. Outcomes such as “service not available” become non-identifying service-gap events in Staff View. To demonstrate resilience, switch offline in browser developer tools: the current journey, referral and follow-up actions persist in IndexedDB and sync idempotently when connectivity returns.
 
@@ -76,7 +91,9 @@ The Doctor workspace is deliberately separate from capacity administration. Doct
 
 ## Facility data provenance
 
-The facility identity source is the Government of India/National Health Portal `hospital_directory.csv`, filtered to `State = Tamil Nadu` and `Hospital_Category = Public/ Government`. The versioned 20-record curated extract, coordinate-enrichment register, validation rules, conservative facility-type fallback, and demo-shift availability are kept separately in `apps/api/src/facility-directory.ts`. The retrieved source file has 2,399 Tamil Nadu rows; the prototype imports 20 selected public/government records and all supplied Tamil Nadu coordinate values were blank. Six records have documented coordinate enrichments; the citizen journey only ranks facilities within the labelled 75 km Chennai demo region.
+The active facility directory is a versioned Chengalpattu pilot sourced from official Tamil Nadu district, municipality and Indian Medicine directories. It contains 17 public-facility identities; nine have separately provenance-labelled coordinates and are eligible for map routing. The remaining records cannot affect recommendations until their exact address and coordinates are verified. Explicitly published services are marked `SOURCED_FROM_DIRECTORY`; conservative facility-type fallbacks are marked `INFERRED_FROM_FACILITY_TYPE`. Current availability, wait time and available-bed values remain `SIMULATED_FOR_PROTOTYPE` because the prototype has no authorised live HMIS connection. Always verify availability before travel. See `apps/api/src/facility-directory.ts` and `docs/data-and-triage-audit.md`.
+
+Run `npm run data:audit` after every facility-data change. The command fails on duplicate IDs, non-government sources, invalid Tamil Nadu coordinates, missing capability provenance or operational values that are not explicitly simulation-labelled.
 
 | Field | Treatment |
 | --- | --- |
@@ -102,6 +119,8 @@ For a judge-facing machine-readable explanation, call `GET /api/facility-data`. 
 For same-origin or localhost development, use `COOKIE_SECURE=false` and `COOKIE_SAME_SITE=lax`. For an HTTPS deployment with frontend and API on different sites, use `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=none`, set `FRONTEND_ORIGIN` to the exact frontend origin, and set `VITE_API_URL` to the API origin. Credentialed CORS never uses a wildcard origin. `AUTH_SECRET` is mandatory in production.
 
 Read [the data and triage audit](docs/data-and-triage-audit.md) for source counts, Chengalpattu coverage, citations, simulated fields, and limitations.
+
+Before deployment, use the [production-readiness gate](docs/production-readiness.md). It separates what is ready for an SIH demo, what is required for private staging, and what must be independently approved before any real clinical pilot.
 
 ## Milestone 3 data boundary
 

@@ -1,0 +1,13 @@
+import fs from "node:fs/promises";
+import { assessNeed, evaluationCorpus, routeFacilities } from "@ruralcare/shared";
+import { buildFacilityRecords } from "../apps/api/src/facility-directory.ts";
+
+const outputDir=new URL("../data/evaluation/",import.meta.url),facilities=buildFacilityRecords();
+await fs.mkdir(outputDir,{recursive:true});
+const rows=evaluationCorpus.map(item=>{const assessment=assessNeed(item.inputText),decision=assessment.urgency==="INSUFFICIENT_INFORMATION"?null:routeFacilities(facilities,assessment,item.caseId),actualRoute=!decision?.selectedFacilityId?"NO_ROUTE":decision.rerouted?"REROUTED":"DIRECT",urgencyPass=assessment.urgency===item.expectedUrgency,servicePass=assessment.service===item.expectedService,languagePass=assessment.language===(item.language==="en"?"en":item.language==="ta"?"ta":"mixed"),rulePass=!item.expectedRuleId||assessment.triggeredRules.some(rule=>rule.triggeredRuleId===item.expectedRuleId),routePass=actualRoute===item.expectedRoute;return{...item,actualUrgency:assessment.urgency,actualService:assessment.service,actualLanguage:assessment.language,actualRuleIds:assessment.triggeredRules.map(rule=>rule.triggeredRuleId).join("|"),actualRoute,selectedFacilityId:decision?.selectedFacilityId||"",urgencyPass,servicePass,languagePass,rulePass,routePass,overallPass:urgencyPass&&servicePass&&languagePass&&rulePass&&routePass};});
+const headers=Object.keys(rows[0]),escape=value=>{const text=String(value??"");return /[",\n]/.test(text)?`"${text.replaceAll('"','""')}"`:text;},csv=[headers.join(","),...rows.map(row=>headers.map(header=>escape(row[header])).join(","))].join("\r\n");
+const counts=(key)=>Object.fromEntries([...new Set(rows.map(row=>row[key]))].map(value=>[String(value),rows.filter(row=>row[key]===value).length]));
+const summary={version:"ruralcare-eval-v1",generatedAt:new Date().toISOString(),totalCases:rows.length,semanticGroups:new Set(rows.map(row=>row.semanticGroup)).size,byLanguage:counts("language"),byUrgency:counts("expectedUrgency"),byService:counts("expectedService"),byRoute:counts("expectedRoute"),passed:rows.filter(row=>row.overallPass).length,failed:rows.filter(row=>!row.overallPass).length,falseEmergencyCount:rows.filter(row=>row.expectedUrgency!=="EMERGENCY"&&row.actualUrgency==="EMERGENCY").length,missedEmergencyCount:rows.filter(row=>row.expectedUrgency==="EMERGENCY"&&row.actualUrgency!=="EMERGENCY").length};
+await fs.writeFile(new URL("ruralcare_multilingual_eval_v1.csv",outputDir),csv,"utf8");
+await fs.writeFile(new URL("ruralcare_multilingual_eval_v1.json",outputDir),JSON.stringify({summary,rows},null,2),"utf8");
+console.log(JSON.stringify(summary,null,2));

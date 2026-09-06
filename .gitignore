@@ -5,5 +5,13 @@ dist/
 *.db
 *.db-journal
 coverage/
+playwright-report/
+test-results/
+.tmp/
+outputs/
+ppt_build/
+RuralCare_Connect_Deck*/
+RuralCare_Connect_Deck*.pptx
+RuralCare_Connect_Deck*.inspect.ndjson
 vite.config.ts.timestamp-*
 *.tsbuildinfo

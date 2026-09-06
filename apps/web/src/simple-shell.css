@@ -1,0 +1,79 @@
+/* Compact, role-aware navigation and patient intake. */
+.app-shell>aside{position:sticky;inset:auto;top:0;width:100%;box-sizing:border-box;min-height:68px;gap:24px;padding:10px max(20px,calc((100vw - 1120px)/2));}
+.app-shell>aside nav{gap:8px;flex:1}
+.app-shell>aside .workspace-nav{display:flex}
+.app-shell>aside nav button{font-size:14px;min-height:44px;white-space:nowrap;border-radius:9px}
+.app-shell>aside nav button:focus-visible{outline:3px solid #0b817229;outline-offset:2px}
+.app-shell>aside .aside-bottom p{font-size:12px;margin:0}
+.app-shell>aside .aside-bottom{display:flex;gap:12px}
+.app-shell>main{max-width:1000px;padding-top:12px}
+.topbar{margin:0;min-height:28px;justify-content:flex-end}
+.topbar .mode-pill,.topbar .mobile-brand{display:none}
+.prototype-banner{font-size:12px;padding:8px 12px;margin:10px 0 20px;box-shadow:none}
+.care-conversation{max-width:760px}
+.care-conversation .welcome-panel{padding:24px;border-radius:14px;box-shadow:none}
+.care-conversation .welcome-panel h1{font-size:28px;line-height:1.2;margin:0 0 8px}
+.care-conversation .welcome-panel .lead{font-size:14px;margin:0;color:#60716c}
+.care-conversation .input-panel{padding:0;margin-top:22px;border:0;background:transparent}
+.care-conversation .input-panel>label{font-size:14px;margin-bottom:10px}
+.care-conversation .input-panel>label span{display:none}
+.care-chat{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px}
+.care-chat-avatar{display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:50%;background:#0b6b61;color:#fff}
+.care-chat-bubble{max-width:560px;padding:11px 14px;border-radius:4px 14px 14px 14px;background:#eaf4f1;color:#234b44;font-size:14px;line-height:1.5}
+.care-origin-control{display:block;background:transparent;padding:10px 12px;margin:0 0 12px}
+.care-origin-control summary{cursor:pointer;font-size:13px;font-weight:600;color:#315d56;min-height:24px}
+.care-origin-control[open]>label{margin:10px 0}
+.care-origin-control>small{display:block;margin-top:8px}
+.care-conversation .input-panel>textarea{box-sizing:border-box;min-height:150px;width:100%;padding:14px;border:1px solid #bdcec8;border-radius:10px;font-family:inherit;font-size:16px}
+.care-conversation .input-actions{margin-top:12px;gap:12px;flex-wrap:wrap}
+.care-conversation .voice-privacy{font-size:11px}
+.care-conversation .safety-strip{font-size:12px;flex-wrap:wrap;margin-top:12px}
+.care-conversation .safety-strip>svg{width:16px}
+.care-review-conversation{display:grid;gap:12px;margin:20px 0}
+.review-message{max-width:78%;padding:12px 15px;border-radius:14px}
+.review-message span{display:block;margin-bottom:4px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+.review-message p{margin:0;line-height:1.5}
+.patient-message{justify-self:end;background:#0b6b61;color:#fff;border-bottom-right-radius:4px}
+.assistant-message{justify-self:start;background:#eaf4f1;color:#234b44;border-bottom-left-radius:4px}
+.resume-care-card{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:18px 0;padding:18px 20px;border:1px solid #cfe0dc;border-radius:14px;background:#fff}
+.resume-care-card h2,.resume-care-card p{margin:3px 0}
+.resume-care-card>div>p:last-child{max-width:560px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#60716c}
+.resume-care-card button{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.handover-lookup{display:grid;grid-template-columns:auto minmax(180px,1fr) minmax(180px,300px) auto;align-items:center;gap:12px;margin:16px 0;padding:14px 16px;border:1px solid #cfe0dc;border-radius:14px;background:#fff}
+.handover-lookup>svg{color:#0b6b61}.handover-lookup div{display:grid}.handover-lookup small{color:#60716c}.handover-lookup>input{min-height:42px;padding:0 12px;border:1px solid #bdd2cc;border-radius:9px}.handover-lookup button{min-height:42px}.handover-actions{display:flex!important;gap:8px}.handover-actions label{display:flex;align-items:center;gap:6px;padding:0 11px;min-height:42px;border:1px solid #0b6b61;border-radius:9px;color:#0b6b61;font-weight:700;cursor:pointer}.handover-actions label svg{width:16px}.handover-actions input{display:none}
+.digital-referral-pass{display:grid;grid-template-columns:190px 1fr;gap:24px;align-items:center;margin:24px auto;padding:22px;max-width:720px;border:1px solid #bfd7d1;border-radius:16px;background:#fff;text-align:left;box-shadow:0 10px 30px #173e360b}
+.referral-qr{display:grid;place-items:center;aspect-ratio:1;border:1px solid #d8e6e2;border-radius:12px;background:#fff}.referral-qr img{display:block;width:100%;height:auto;border-radius:10px}.referral-qr>svg{width:54px;height:54px;color:#0b6b61}
+.digital-referral-pass span{font-size:11px;font-weight:800;letter-spacing:.12em;color:#617873}.digital-referral-pass h2{margin:5px 0;font-size:28px}.digital-referral-pass p{margin:5px 0 12px;line-height:1.5}.digital-referral-pass dl{display:grid;gap:7px;margin:10px 0}.digital-referral-pass dl div{display:grid}.digital-referral-pass dt{font-size:11px;color:#687d78}.digital-referral-pass dd{margin:0;font-weight:700}.digital-referral-pass code{display:block;overflow:hidden;text-overflow:ellipsis;color:#60716c;font-size:11px}.digital-referral-pass button{display:flex;align-items:center;gap:7px;margin-top:12px}.digital-referral-pass button svg{width:16px}
+.prototype-account-button{width:100%;min-height:44px;margin-top:12px;border:1px solid #0b6b61!important;border-radius:9px;background:#eef7f4!important;color:#075f56!important;font-weight:750}
+.workspace-tabs{display:flex;gap:6px;margin:18px 0 20px;padding:5px;width:max-content;border:1px solid #d4e2de;border-radius:11px;background:#fff}
+.workspace-tabs button{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:#496660;font-weight:700}.workspace-tabs button svg{width:16px}.workspace-tabs button.active{background:#0b6b61;color:#fff}
+.staff-workspace.section-referrals .capacity-control,.staff-workspace.section-referrals .facility-review-panel,.staff-workspace.section-referrals .capacity-alert,.staff-workspace.section-referrals .staff-lower{display:none}
+.staff-workspace.section-capacity .handover-lookup,.staff-workspace.section-capacity .staff-summary,.staff-workspace.section-capacity .active-cases,.staff-workspace.section-capacity .pipeline-panel,.staff-workspace.section-capacity .staff-lower{display:none}
+.staff-workspace.section-insights .handover-lookup,.staff-workspace.section-insights .capacity-control,.staff-workspace.section-insights .facility-review-panel,.staff-workspace.section-insights .staff-grid,.staff-workspace.section-insights .pipeline-panel{display:none}
+.doctor-workspace.section-referrals>.handover-lookup{display:none}.doctor-workspace.section-scan .doctor-summary,.doctor-workspace.section-scan .doctor-layout,.doctor-workspace.section-scan .pipeline-panel{display:none}
+.staff-workspace,.doctor-workspace{padding:20px 0!important;max-width:1000px!important}.staff-heading{align-items:center!important;margin-bottom:10px!important}.staff-heading h1{font-family:inherit!important;font-size:clamp(1.8rem,3vw,2.5rem)!important;line-height:1.15!important;margin:4px 0 8px!important}.staff-heading p:not(.kicker){max-width:650px!important;font-size:.9rem!important}.staff-context{margin:10px 0!important}.staff-summary,.doctor-summary{gap:10px!important;margin:14px 0 18px!important}.staff-summary article,.doctor-summary>article{padding:13px!important;box-shadow:none!important}.staff-workspace.section-referrals .staff-summary article:nth-child(n+5){display:none}.capacity-control{grid-template-columns:1.3fr 1fr 1fr!important;padding:16px!important}.capacity-control>div:last-child{grid-column:1/-1}.staff-grid{grid-template-columns:1fr!important}.active-cases,.pipeline-panel,.staff-lower>article,.doctor-worklist,.doctor-guidance{box-shadow:none!important}
+.clinical-outcome-form,.clinical-outcome-history,.patient-clinical-update{margin:16px 0;padding:16px;border:1px solid #cfe0dc;border-radius:13px;background:#f8fbfa}.clinical-outcome-form{display:grid;gap:11px}.clinical-outcome-form>p{margin:0;color:#60716c;font-size:13px}.clinical-outcome-form label{display:grid;gap:5px;font-size:12px;font-weight:750}.clinical-outcome-form input,.clinical-outcome-form select,.clinical-outcome-form textarea{box-sizing:border-box;width:100%;padding:9px 10px;border:1px solid #bdd2cc;border-radius:8px;background:#fff;font:inherit}.clinical-outcome-form textarea{min-height:68px;resize:vertical}.clinical-outcome-form>button{min-height:42px}.clinical-outcome-history{display:grid;gap:9px}.clinical-outcome-history article,.patient-clinical-update article{padding:12px;border-radius:10px;background:#fff}.clinical-outcome-history p,.patient-clinical-update p{margin:6px 0;line-height:1.45}.clinical-outcome-history small,.patient-clinical-update small{display:block;margin-top:5px;color:#60716c}.patient-clinical-update article>div{display:flex;align-items:center;gap:7px;color:#0b6b61}.patient-clinical-update article>div svg{width:17px}
+.asha-workspace{max-width:900px;margin:auto;padding:20px 0}.asha-risk-legend{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0;padding:12px 15px;border:1px solid #d5e3df;border-radius:11px;background:#fff}.asha-risk-legend span{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}.asha-risk-legend i{width:9px;height:9px;border-radius:50%}.risk-high{background:#b8442f!important;color:#a93422!important}.risk-medium{background:#d29318!important;color:#8c620b!important}.risk-low{background:#16816f!important;color:#116456!important}.asha-followup-list{display:grid;gap:10px}.asha-followup-list>article{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;align-items:center;gap:12px;padding:15px;border:1px solid #d5e3df;border-radius:13px;background:#fff}.asha-followup-list article>div{display:grid;gap:3px}.asha-followup-list span{font-family:monospace;color:#54716b}.asha-followup-list small{color:#687e79}.asha-followup-list strong{padding:6px 9px;border-radius:8px;background:#edf5f3}.asha-followup-list ul{grid-column:1/3;margin:0;padding-left:18px;color:#60716c;font-size:12px}.asha-followup-list button{grid-column:3;grid-row:1/3}
+.voice-confidence-warning,.contradiction-alert{display:flex;align-items:flex-start;gap:9px;margin-top:10px;padding:11px 12px;border:1px solid #e1a790;border-radius:10px;background:#fff5f1;color:#8b3826;font-size:12px}.voice-confidence-warning svg,.contradiction-alert>svg{flex:0 0 18px;width:18px}.contradiction-alert{margin:16px 0}.contradiction-alert p{margin:5px 0}.contradiction-alert small{display:block;margin-top:7px}.flow-actions button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){
+ .app-shell>aside{display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 14px}
+ .app-shell>aside .brand{flex:1}
+ .app-shell>aside nav{order:3;flex-basis:100%;justify-content:flex-start}
+ .app-shell>aside nav button,.app-shell>aside nav button span{font-size:13px}
+ .app-shell>aside .workspace-nav{display:flex}
+ .app-shell>aside .aside-bottom p{display:none}
+ .app-shell>main{padding:10px 14px 28px}
+ .care-conversation .welcome-panel{padding:18px}
+ .care-conversation .welcome-panel h1{font-size:24px}
+ .prototype-banner{flex-wrap:wrap;font-size:11px}
+ .resume-care-card{align-items:flex-start;flex-direction:column}
+ .resume-care-card>div>p:last-child{max-width:75vw}
+ .handover-lookup{grid-template-columns:auto 1fr}.handover-lookup>input,.handover-actions{grid-column:1/-1;width:100%;box-sizing:border-box}.handover-actions>*{flex:1;justify-content:center}
+ .digital-referral-pass{grid-template-columns:1fr}.referral-qr{width:180px;margin:auto}
+ .workspace-tabs{width:100%;box-sizing:border-box}.workspace-tabs button{flex:1;justify-content:center;padding:0 8px}.staff-workspace,.doctor-workspace{padding:10px 0!important}.capacity-control{grid-template-columns:1fr!important}.capacity-control>div:last-child{grid-column:auto}
+ .asha-followup-list>article{grid-template-columns:1fr}.asha-followup-list ul,.asha-followup-list button{grid-column:auto;grid-row:auto}
+}
+@media(min-width:701px) and (max-width:980px){
+ .app-shell>aside .workspace-nav{display:flex!important}
+}
+@media print{.app-shell>aside,.topbar,.prototype-banner,.pathway-tracker,.toast,.followup-page>h1,.followup-page>.kicker,.followup-page>p,.continuity-status,.reroute-alert,.followup-outcome,.timeline,.flow-actions,.care-guide{display:none!important}.digital-referral-pass{display:grid!important;box-shadow:none;border:1px solid #333;margin:20px auto}.app-shell>main{padding:0}}

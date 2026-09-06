@@ -2,15 +2,23 @@
   "name": "ruralcare-connect",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "npm run db:push && concurrently -k -n api,web -c blue,green \"npm --workspace @ruralcare/api run dev\" \"npm --workspace @ruralcare/web run dev\"",
+    "dev": "node scripts/dev.mjs",
+    "dev:start": "npm run db:push && concurrently -k -n api,web -c blue,green \"npm --workspace @ruralcare/api run dev\" \"npm --workspace @ruralcare/web run dev\"",
+    "start": "npm --workspace @ruralcare/api run start",
     "db:push": "npm --workspace @ruralcare/api run db:push",
     "db:seed": "npm --workspace @ruralcare/api run db:seed",
     "build": "npm --workspace @ruralcare/shared run check && npm --workspace @ruralcare/api run check && npm --workspace @ruralcare/web run build",
-    "test": "node --import tsx --test --test-concurrency=1 packages/shared/src/triage.test.ts packages/shared/src/intake.test.ts packages/shared/src/routing.test.ts apps/api/src/clinical-extraction.test.ts apps/api/src/facility-directory.test.ts apps/api/src/continuity.test.ts apps/api/src/auth.test.ts apps/api/src/google-auth.test.ts apps/web/src/offline-store.test.ts"
+    "test": "node --import tsx --test --test-concurrency=1 packages/shared/src/triage.test.ts packages/shared/src/intake.test.ts packages/shared/src/routing.test.ts apps/api/src/clinical-extraction.test.ts apps/api/src/navigation-assistant.test.ts apps/api/src/evaluation-corpus.test.ts apps/api/src/facility-directory.test.ts apps/api/src/facility-data-audit.test.ts apps/api/src/continuity.test.ts apps/api/src/auth.test.ts apps/api/src/google-auth.test.ts apps/web/src/offline-store.test.ts",
+    "test:e2e": "playwright test",
+    "data:audit": "node --import tsx apps/api/src/facility-data-audit.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.1.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

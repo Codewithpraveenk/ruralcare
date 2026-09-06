@@ -1,106 +1,408 @@
-import { calculateDistanceKm, type CapabilitySource, type Facility, type Service, type ServiceCapacity } from "@ruralcare/shared";
+import {
+  calculateDistanceKm,
+  type CapabilitySource,
+  type Facility,
+  type Service,
+  type ServiceCapacity,
+} from "@ruralcare/shared";
 
-export type DirectoryRecord = { sourceRowId: string; name: string; category: string; careType: string; address: string; district: string; pincode: string; originalCoordinates: string; specialties: string; facilities: string };
-type CoordinateEnrichment = { facilityId: string; sourceRowId: string; latitude: number; longitude: number; lookupSource: string; matchingEvidence: string; retrievedOn: string; confidence: "HIGH"; routingLevel: Facility["type"] };
+export type DirectoryRecord = {
+  sourceRowId: string;
+  name: string;
+  category: "Public/ Government";
+  careType: string;
+  address: string;
+  district: "Chengalpattu";
+  pincode: string;
+  phone: string;
+  sourceUrl: string;
+  retrievedOn: string;
+  explicitlySourcedServices: Service[];
+  serviceEvidence?: string;
+};
+type CoordinateEnrichment = {
+  facilityId: string;
+  sourceRowId: string;
+  latitude: number;
+  longitude: number;
+  lookupSource: string;
+  matchingEvidence: string;
+  retrievedOn: string;
+  confidence: "HIGH";
+  routingLevel: Facility["type"];
+};
 
-// Versioned extraction from hospital_directory.csv: State = Tamil Nadu and Hospital_Category = Public/ Government.
-// The supplied Location_Coordinates column was blank for every record in this extract.
-const sourceTsv = `23749|Government General Hospital|Public/ Government|0|Government General Hospital|Chennai|600003||0|0
-24035|Public Health Centre|Public/ Government|0|174, Lake View Road, West Mambalam, Near Ayodhya Mandapam|Chennai|600033||0|0
-24194|Adyar Dispensary|Public/ Government|Dispensary|Block No l.122/169-170, CPWD Quarters, Indira Nagar, Adyar|Chennai|600020||0|0
-24195|Ana Nagar Dispensary and Polyclinic Central|Public/ Government|Dispensary/ Poly Clinic|Revenue Quarters, No.15, Ranganathan Garden, Anna Nagar|Chennai|600040||0|0
-24196|George Town Dispensary|Public/ Government|Dispensary|No.64, Thathamuthiappan Street, George Town|Chennai|600001||0|0
-24197|Gopalapuram Dispensary|Public/ Government|Dispensary|No.1, 1st Street, Gopalapuram|Chennai|600086||0|0
-24198|Guindy Dispensary|Public/ Government|Dispensary|Block No.6/1-5, BCG Staff Quarters, Guindy|Chennai|600032||0|0
-24199|K.K.Nagar Dispensary and Polyclinic|Public/ Government|Dispensary/ Poly Clinic|GPRA Complex, CPWD Quarters, K.K.Nagar|Chennai|600078||0|0
-24200|Meenambakkam Dispensary|Public/ Government|Dispensary|DGQA Complex, Meenambakkam|Chennai|600114||0|0
-24201|Nandambakkam Dispensary|Public/ Government|Dispensary|Quarter No.16-19 CDA Residential Complex, Nandambakkam|Chennai|600089||0|0
-24202|Nungambakkam Dispensary CandB Block|Public/ Government|Dispensary|Nungambakkam Dispensary CandB Block, 1st Floor, Shastri Bhavan, Haddows Road|Chennai|600006||0|0
-24203|Perambur Dispensary|Public/ Government|Dispensary|No 28, Perambur High Road, Perambur|Chennai|600012||0|0
-24204|Raja Annamalai Puram Dispensary No.6|Public/ Government|Dispensary|Kamaraj Saalai, R.A.Puram|Chennai|600028||0|0
-24205|Royapuram Dispensary, No.108 and 109|Public/ Government|Dispensary|Mannar Swami Koil Street, Royapuram|Chennai|600013||0|0
-24206|Triplicane Dispensary|Public/ Government|Dispensary|No.54, Akbar Sahib Street, Triplicane|Chennai|600005||0|0
-24207|Vepery Dispensary|Public/ Government|Dispensary|No.143, Perambur Barracks Road Vepery|Chennai|600007||0|0
-24230|Sree Balaji Medical College and Hospital|Public/ Government|Hospital|No.7, Works Road|Chennai|600044||Anatomy, Physiology, Biochemistry, Pathology, Microbiology, Forensic Medicine and Toxicology, Pharmacology, Paediatrics, Community Medicine, Anaesthesiology and Pain Clinic, ENT and Head Neck Surgery, Ophthalmology, General Medicine, General Surgery, Obstetrics and Gynaecology, Orthopaedics, Psychiatry, Chest and TB, Dermatology, Casualty (Accident and Emergency Medicine), Radiology and Imaging Sciences, Cardiac Care Center, Urology and Nephrology, Neuro Surgery, Neurology, Surgical Gastroenterology|0
-25037|Kanyakumari Government Hospital and College|Public/ Government|Hospital|Asaripallam|Kanniyakumari|629201||||
-25039|Government Hospital|Public/ Government|Hospital|Government Hospital Campus|Kanniyakumari|629702|||Ambulance Service, Chemist, General Ward, X-ray, Blood Bank, Causality, I.C.C.U., CT SCAN
-25398|Vinayaka Missions Medical College|Public/ Government|Hospital|Sankari Main Road|Salem|636308||||`;
-
-export const tamilNaduPublicDirectory: DirectoryRecord[] = sourceTsv.split("\n").map((line) => {
-  const [sourceRowId, name, category, careType, address, district, pincode, originalCoordinates, specialties, facilities] = line.split("|");
-  return { sourceRowId, name, category, careType, address, district, pincode, originalCoordinates, specialties, facilities };
-});
-
-// Public-map enrichments are intentionally separate from the government-directory facts.
-const coordinateEnrichments: CoordinateEnrichment[] = [
-  { facilityId: "rajiv-gandhi-government-general-hospital", sourceRowId: "23749", latitude: 13.0809, longitude: 80.27733, lookupSource: "https://www.wikidata.org/wiki/Q5588842", matchingEvidence: "Government General Hospital, Chennai 600003 matched to the Chennai district government-hospital listing and Rajiv Gandhi Government General Hospital coordinate entity", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISTRICT_HOSPITAL" },
-  { facilityId: "public-health-centre-west-mambalam", sourceRowId: "24035", latitude: 13.036565, longitude: 80.22176, lookupSource: "https://www.hospitalsnearme.in/tamilnadu-tn/public-health-centre-hospital-chennai/", matchingEvidence: "Exact facility name, 174 Lake View Road, West Mambalam, Chennai 600033", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "PHC" },
-  { facilityId: "gopalapuram-dispensary", sourceRowId: "24197", latitude: 13.049097, longitude: 80.257621, lookupSource: "https://cghshospitals.com/wellness-centres/chennai", matchingEvidence: "Exact facility name, No.1 1st Street, Gopalapuram, Chennai 600086", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISPENSARY" },
-  { facilityId: "kk-nagar-dispensary", sourceRowId: "24199", latitude: 13.0368, longitude: 80.2079107, lookupSource: "https://www.latlong.net/poi/k-k-nagar-dispensary-and-polyclinic-402035", matchingEvidence: "Exact facility name, GPRA Complex, CPWD Quarters, K.K.Nagar, Chennai 600078", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISPENSARY" },
-  { facilityId: "kanyakumari-government-medical-college", sourceRowId: "25037", latitude: 8.1738722, longitude: 77.3938778, lookupSource: "https://mapcarta.com/W551805512", matchingEvidence: "Kanyakumari Government Medical College Hospital at Asaripallam, Kanniyakumari 629201", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISTRICT_HOSPITAL" },
-  { facilityId: "government-hospital-kanniyakumari", sourceRowId: "25039", latitude: 8.0834769, longitude: 77.5474128, lookupSource: "https://www.latlong.net/poi/government-hospital-kanniyakumari-374920", matchingEvidence: "Exact facility name and Kanniyakumari 629702 pincode", retrievedOn: "2026-08-30", confidence: "HIGH", routingLevel: "DISTRICT_HOSPITAL" }
+// Version 2026-09-03. Identity, address and phone are copied from official Tamil Nadu
+// district/municipality pages. They make no claim about current doctors, beds or queues.
+export const tamilNaduPublicDirectory: DirectoryRecord[] = [
+  {
+    sourceRowId: "cgl-district-cheyyur",
+    name: "Government Hospital, Cheyyur",
+    category: "Public/ Government",
+    careType: "Government Hospital",
+    address: "Government Hospital, Salt Road, Cheyyur - 603302",
+    district: "Chengalpattu",
+    pincode: "603302",
+    phone: "9947589042",
+    sourceUrl: "https://chengalpattu.nic.in/public-utility-category/hospitals/",
+    retrievedOn: "2026-09-03",
+    explicitlySourcedServices: [],
+  },
+  {
+    sourceRowId: "cgl-district-chromepet",
+    name: "Government Hospital, Chromepet",
+    category: "Public/ Government",
+    careType: "Government Hospital",
+    address:
+      "Great Southern Trunk Road, Mahalakshmi Colony, Chromepet, Tambaram, Chennai - 600044",
+    district: "Chengalpattu",
+    pincode: "600044",
+    phone: "9789721967",
+    sourceUrl: "https://chengalpattu.nic.in/public-utility-category/hospitals/",
+    retrievedOn: "2026-09-03",
+    explicitlySourcedServices: [],
+  },
+  {
+    sourceRowId: "cgl-district-madurantakam",
+    name: "Government Hospital, Madurantakam",
+    category: "Public/ Government",
+    careType: "Taluk Hospital",
+    address: "Government Hospital, Hospital Road, Madurantakam - 603306",
+    district: "Chengalpattu",
+    pincode: "603306",
+    phone: "7358124622",
+    sourceUrl: "https://chengalpattu.nic.in/public-utility-category/hospitals/",
+    retrievedOn: "2026-09-03",
+    explicitlySourcedServices: ["PRIMARY_CARE", "MATERNITY", "EMERGENCY"],
+    serviceEvidence:
+      "Official Madurantakam master-plan publication lists maternity, accident and emergency, surgery, X-ray, dental, family-welfare and Siddha services.",
+  },
+  {
+    sourceRowId: "cgl-municipality-medical-college",
+    name: "Government Chengalpattu Medical College Hospital",
+    category: "Public/ Government",
+    careType: "Medical College Hospital",
+    address:
+      "GST Road, Chengalpattu Medical College Campus, Chengalpattu - 603001",
+    district: "Chengalpattu",
+    pincode: "603001",
+    phone: "Not published on source page",
+    sourceUrl: "https://www.tnurbantree.tn.gov.in/chengalpattu/hospitals/",
+    retrievedOn: "2026-09-03",
+    explicitlySourcedServices: [],
+  },
+  {
+    sourceRowId: "cgl-municipality-maternity",
+    name: "Municipal Maternity Hospital",
+    category: "Public/ Government",
+    careType: "Municipal Maternity Hospital",
+    address: "Hanumanthaputheri, Chengalpattu",
+    district: "Chengalpattu",
+    pincode: "",
+    phone: "Not published on source page",
+    sourceUrl: "https://www.tnurbantree.tn.gov.in/chengalpattu/hospitals/",
+    retrievedOn: "2026-09-03",
+    explicitlySourcedServices: ["MATERNITY"],
+    serviceEvidence:
+      "The official municipality directory explicitly identifies this as a maternity hospital.",
+  },
+  ...[
+    ["thirukalukundram", "Thirukalukundram", "Taluk Hospital"],
+    ["mamallapuram", "Mamallapuram", "Non-Taluk Hospital"],
+    ["nandhivaram", "Nandhivaram", "Primary Health Center"],
+    ["medavakkam", "Medavakkam", "Primary Health Center"],
+    ["pavunjur", "Pavunjur", "Primary Health Center"],
+    ["achirapakkam", "Achirapakkam", "Primary Health Center"],
+    ["zamin-endathur", "Zamin Endathur", "Primary Health Center"],
+    ["kelambakkam", "Kelambakkam", "Primary Health Center"],
+    ["chunampet", "Chunampet", "Primary Health Center"],
+    ["maraimalai-nagar", "Maraimalai Nagar", "Primary Health Center"],
+    ["koovathur", "Koovathur", "Primary Health Center"],
+    ["sadras", "Sadras", "Primary Health Center"],
+  ].map(([slug, name, careType]) => ({
+    sourceRowId: `imhd-chengalpet-${slug}`,
+    name,
+    category: "Public/ Government" as const,
+    careType,
+    address: `${name}, Chengalpattu district — exact street address not published in source`,
+    district: "Chengalpattu" as const,
+    pincode: "",
+    phone: "Not published on source page",
+    sourceUrl: "https://imhd.tn.gov.in/siddha-hospitals/",
+    retrievedOn: "2026-09-03",
+    explicitlySourcedServices: [] as Service[],
+    serviceEvidence: `The official Tamil Nadu Indian Medicine directory confirms a Siddha wing at this ${careType}; it does not verify the modern-medicine services used by RuralCare routing.`,
+  })),
 ];
 
-const shiftAvailability: Record<string, { available: boolean; note: string }> = {
-  "rajiv-gandhi-government-general-hospital": { available: true, note: "Availability simulated for demo" },
-  "public-health-centre-west-mambalam": { available: true, note: "Availability simulated for demo" },
-  "gopalapuram-dispensary": { available: false, note: "Unavailable in this synthetic demo shift" },
-  "kk-nagar-dispensary": { available: true, note: "Availability simulated for demo" },
-  "kanyakumari-government-medical-college": { available: true, note: "Availability simulated for demo" },
-  "government-hospital-kanniyakumari": { available: true, note: "Availability simulated for demo" }
+// Coordinates are separately provenance-labelled OpenStreetMap/Nominatim matches.
+// The maternity record stays in provenance but is excluded until coordinates are verified.
+const coordinateEnrichments: CoordinateEnrichment[] = [
+  {
+    facilityId: "government-hospital-madurantakam",
+    sourceRowId: "cgl-district-madurantakam",
+    latitude: 12.5093491,
+    longitude: 79.8903597,
+    lookupSource: "https://www.openstreetmap.org/",
+    matchingEvidence: "Exact hospital name and Madurantakam locality match",
+    retrievedOn: "2026-09-03",
+    confidence: "HIGH",
+    routingLevel: "CHC",
+  },
+  {
+    facilityId: "government-hospital-cheyyur",
+    sourceRowId: "cgl-district-cheyyur",
+    latitude: 12.35204,
+    longitude: 80.002556,
+    lookupSource: "https://www.openstreetmap.org/",
+    matchingEvidence: "Government hospital and Cheyyur locality match",
+    retrievedOn: "2026-09-03",
+    confidence: "HIGH",
+    routingLevel: "CHC",
+  },
+  {
+    facilityId: "government-hospital-chromepet",
+    sourceRowId: "cgl-district-chromepet",
+    latitude: 12.9516,
+    longitude: 80.1413,
+    lookupSource: "https://www.openstreetmap.org/",
+    matchingEvidence:
+      "Government hospital, GST Road and Chromepet locality match",
+    retrievedOn: "2026-09-03",
+    confidence: "HIGH",
+    routingLevel: "CHC",
+  },
+  {
+    facilityId: "chengalpattu-government-medical-college",
+    sourceRowId: "cgl-municipality-medical-college",
+    latitude: 12.6819,
+    longitude: 79.9834,
+    lookupSource: "https://www.openstreetmap.org/",
+    matchingEvidence:
+      "Medical college hospital campus and Chengalpattu locality match",
+    retrievedOn: "2026-09-03",
+    confidence: "HIGH",
+    routingLevel: "DISTRICT_HOSPITAL",
+  },
+  {facilityId:"government-hospital-thirukalukundram",sourceRowId:"imhd-chengalpet-thirukalukundram",latitude:12.6067021,longitude:80.0587443,lookupSource:"https://www.openstreetmap.org/",matchingEvidence:"Exact Thirukalukundram Government Hospital, locality and Chengalpattu district match",retrievedOn:"2026-09-03",confidence:"HIGH",routingLevel:"CHC"},
+  {facilityId:"government-hospital-mamallapuram",sourceRowId:"imhd-chengalpet-mamallapuram",latitude:12.61773,longitude:80.180966,lookupSource:"https://www.openstreetmap.org/",matchingEvidence:"Government Hospital at Mahabalipuram/Mamallapuram, locality and Chengalpattu district match",retrievedOn:"2026-09-03",confidence:"HIGH",routingLevel:"CHC"},
+  {facilityId:"primary-health-centre-medavakkam",sourceRowId:"imhd-chengalpet-medavakkam",latitude:12.9142715,longitude:80.1918308,lookupSource:"https://www.openstreetmap.org/",matchingEvidence:"Exact Primary Health Centre and Medavakkam locality match",retrievedOn:"2026-09-03",confidence:"HIGH",routingLevel:"PHC"},
+  {facilityId:"primary-health-centre-maraimalai-nagar",sourceRowId:"imhd-chengalpet-maraimalai-nagar",latitude:12.7912159,longitude:80.0329128,lookupSource:"https://www.openstreetmap.org/",matchingEvidence:"Exact Government Primary Health Centre and Maraimalai Nagar locality match",retrievedOn:"2026-09-03",confidence:"HIGH",routingLevel:"PHC"},
+  {facilityId:"primary-health-centre-sadras",sourceRowId:"imhd-chengalpet-sadras",latitude:12.5274531,longitude:80.1631378,lookupSource:"https://www.openstreetmap.org/",matchingEvidence:"Exact Government Primary Health Centre, Sadras and Chengalpattu district match",retrievedOn:"2026-09-03",confidence:"HIGH",routingLevel:"PHC"},
+];
+
+// Operational values remain simulated, at field level, only for the rerouting demo.
+const syntheticCapacity: Record<
+  string,
+  Partial<Record<Service, ServiceCapacity>>
+> = {
+  "government-hospital-madurantakam": {
+    PRIMARY_CARE: {
+      status: "UNAVAILABLE",
+      estimatedWaitMinutes: 0,
+      availableBeds: 0,
+      note: "SIMULATED_FOR_PROTOTYPE · OPD unavailable to demonstrate rerouting",
+    },
+    MATERNITY: {
+      status: "LIMITED",
+      estimatedWaitMinutes: 45,
+      availableBeds: 1,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    EMERGENCY: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 12,
+      availableBeds: 2,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+  },
+  "government-hospital-cheyyur": {
+    PRIMARY_CARE: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 20,
+      availableBeds: 0,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    MATERNITY: {
+      status: "LIMITED",
+      estimatedWaitMinutes: 50,
+      availableBeds: 1,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    CHILD_HEALTH: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 25,
+      availableBeds: 1,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    EMERGENCY: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 15,
+      availableBeds: 1,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+  },
+  "government-hospital-chromepet": {
+    PRIMARY_CARE: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 30,
+      availableBeds: 2,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    MATERNITY: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 35,
+      availableBeds: 2,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    CHILD_HEALTH: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 30,
+      availableBeds: 2,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    EMERGENCY: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 10,
+      availableBeds: 3,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+  },
+  "chengalpattu-government-medical-college": {
+    PRIMARY_CARE: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 40,
+      availableBeds: 6,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    MATERNITY: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 30,
+      availableBeds: 4,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    CHILD_HEALTH: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 25,
+      availableBeds: 4,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+    EMERGENCY: {
+      status: "AVAILABLE",
+      estimatedWaitMinutes: 8,
+      availableBeds: 5,
+      note: "SIMULATED_FOR_PROTOTYPE",
+    },
+  },
 };
 
-const syntheticCapacity: Record<string, Partial<Record<Service, ServiceCapacity>>> = {
-  "rajiv-gandhi-government-general-hospital": {
-    PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 35, availableBeds: 8, note: "Synthetic general-care capacity" },
-    CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 4, note: "Synthetic child-health capacity" },
-    MATERNITY: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 4, note: "Synthetic maternity capacity" },
-    EMERGENCY: { status: "AVAILABLE", estimatedWaitMinutes: 8, availableBeds: 5, note: "Synthetic emergency capacity" }
-  },
-  "public-health-centre-west-mambalam": {
-    PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "General OPD marked unavailable for the deterministic rerouting demo" },
-    CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 25, availableBeds: 2, note: "Child-health desk available in the synthetic demo shift" },
-    MATERNITY: { status: "LIMITED", estimatedWaitMinutes: 45, availableBeds: 1, note: "One observation bed shown for the synthetic demo" }
-  },
-  "gopalapuram-dispensary": { PRIMARY_CARE: { status: "UNAVAILABLE", estimatedWaitMinutes: 0, availableBeds: 0, note: "Unavailable in the synthetic demo shift" } },
-  "kk-nagar-dispensary": { PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 12, availableBeds: 0, note: "Walk-in public dispensary shown as available in the synthetic demo" } },
-  "kanyakumari-government-medical-college": {
-    PRIMARY_CARE: { status: "AVAILABLE", estimatedWaitMinutes: 35, availableBeds: 12, note: "Synthetic tertiary-care capacity" },
-    CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 28, availableBeds: 6, note: "Synthetic paediatric capacity" },
-    MATERNITY: { status: "AVAILABLE", estimatedWaitMinutes: 30, availableBeds: 5, note: "Synthetic maternity capacity" },
-    EMERGENCY: { status: "AVAILABLE", estimatedWaitMinutes: 8, availableBeds: 4, note: "Synthetic emergency capacity" }
-  },
-  "government-hospital-kanniyakumari": {
-    PRIMARY_CARE: { status: "LIMITED", estimatedWaitMinutes: 55, availableBeds: 1, note: "Synthetic limited OPD capacity" },
-    CHILD_HEALTH: { status: "AVAILABLE", estimatedWaitMinutes: 35, availableBeds: 3, note: "Synthetic child-health capacity" },
-    MATERNITY: { status: "LIMITED", estimatedWaitMinutes: 50, availableBeds: 1, note: "Synthetic limited maternity capacity" },
-    EMERGENCY: { status: "AVAILABLE", estimatedWaitMinutes: 14, availableBeds: 2, note: "Synthetic emergency capacity" }
-  }
-};
-
-export const demoOrigin = { latitude: 13.041, longitude: 80.224 };
+export const demoOrigin = { latitude: 12.514, longitude: 79.884 };
 const referenceServices: Record<Facility["type"], Service[]> = {
-  AAM: ["PRIMARY_CARE"], DISPENSARY: ["PRIMARY_CARE"], PHC: ["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH"], CHC: ["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH", "EMERGENCY"], DISTRICT_HOSPITAL: ["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH", "EMERGENCY"]
+  AAM: ["PRIMARY_CARE"],
+  DISPENSARY: ["PRIMARY_CARE"],
+  PHC: ["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH"],
+  CHC: ["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH", "EMERGENCY"],
+  DISTRICT_HOSPITAL: ["PRIMARY_CARE", "MATERNITY", "CHILD_HEALTH", "EMERGENCY"],
 };
-function directorySpecialtyServices(record: DirectoryRecord): Service[] {
-  const value = `${record.specialties} ${record.facilities}`.toLowerCase();
-  if (!value || value === "0") return [];
-  return [["paediatrics", "CHILD_HEALTH"], ["obstetrics", "MATERNITY"], ["gynaecology", "MATERNITY"], ["general medicine", "PRIMARY_CARE"], ["casualty", "EMERGENCY"], ["emergency", "EMERGENCY"]].flatMap(([term, service]) => value.includes(term) ? [service as Service] : []);
-}
+
 export function buildFacilityRecords(): Facility[] {
   return coordinateEnrichments.map((enrichment) => {
-    const source = tamilNaduPublicDirectory.find((record) => record.sourceRowId === enrichment.sourceRowId);
-    const availability = shiftAvailability[enrichment.facilityId];
-    if (!source || source.category !== "Public/ Government" || !source.name || !source.address || !source.district || !availability) throw new Error(`Invalid facility source: ${enrichment.facilityId}`);
-    if (!Number.isFinite(enrichment.latitude) || !Number.isFinite(enrichment.longitude) || Math.abs(enrichment.latitude) > 90 || Math.abs(enrichment.longitude) > 180) throw new Error(`Invalid coordinates: ${enrichment.facilityId}`);
-    const explicitServices = directorySpecialtyServices(source);
-    const capabilitySource: CapabilitySource = explicitServices.length ? "SOURCED_FROM_DIRECTORY" : "INFERRED_FROM_FACILITY_TYPE";
-    const services = explicitServices.length ? explicitServices : referenceServices[enrichment.routingLevel];
-    const serviceSources = Object.fromEntries(services.map((service) => [service, capabilitySource])) as Partial<Record<Service, CapabilitySource>>;
-    return { id: enrichment.facilityId, name: source.name, type: enrichment.routingLevel, services, capabilitySource, serviceSources, available: availability.available, hours: availability.note, address: source.address, phone: "Not published in supplied directory", latitude: enrichment.latitude, longitude: enrichment.longitude, distanceKm: calculateDistanceKm(demoOrigin, enrichment), capacity: syntheticCapacity[enrichment.facilityId] || {}, lastUpdated: "Synthetic demo shift · 09:30 IST" };
+    const source = tamilNaduPublicDirectory.find(
+      (record) => record.sourceRowId === enrichment.sourceRowId,
+    );
+    if (!source)
+      throw new Error(`Invalid facility source: ${enrichment.facilityId}`);
+    const explicit = new Set(source.explicitlySourcedServices),
+      services = [
+        ...new Set([
+          ...source.explicitlySourcedServices,
+          ...referenceServices[enrichment.routingLevel],
+        ]),
+      ];
+    const serviceSources = Object.fromEntries(
+      services.map((service) => [
+        service,
+        explicit.has(service)
+          ? "SOURCED_FROM_DIRECTORY"
+          : "INFERRED_FROM_FACILITY_TYPE",
+      ]),
+    ) as Partial<Record<Service, CapabilitySource>>;
+    return {
+      id: enrichment.facilityId,
+      name: source.name,
+      type: enrichment.routingLevel,
+      services,
+      capabilitySource: explicit.size
+        ? "SOURCED_FROM_DIRECTORY"
+        : "INFERRED_FROM_FACILITY_TYPE",
+      serviceSources,
+      available: true,
+      hours: "Hours not published — verify before travel",
+      address: source.address,
+      phone: source.phone,
+      latitude: enrichment.latitude,
+      longitude: enrichment.longitude,
+      distanceKm: calculateDistanceKm(demoOrigin, enrichment),
+      capacity: syntheticCapacity[enrichment.facilityId]||Object.fromEntries(services.map(service=>[service,{status:"AVAILABLE",estimatedWaitMinutes:30,availableBeds:0,note:"SIMULATED_FOR_PROTOTYPE · no live operational feed"}])) as Partial<Record<Service,ServiceCapacity>>,
+      lastUpdated: "Operational values: SIMULATED_FOR_PROTOTYPE",
+    };
   });
 }
+
 export function facilityProvenance() {
-  const records = buildFacilityRecords();
-  return { source: "Government of India National Hospital Directory (hospital_directory.csv)", sourceUrl: "https://www.data.gov.in/resource/national-hospital-directory-geo-code-and-additional-parameters-updated-till-last-month", filter: { state: "Tamil Nadu", hospitalCategory: "Public/ Government" }, sourceRecords: tamilNaduPublicDirectory.length, includedFacilities: coordinateEnrichments.map(({ facilityId, sourceRowId, lookupSource, matchingEvidence, retrievedOn, confidence }) => ({ facilityId, sourceRowId, lookupSource, matchingEvidence, retrievedOn, confidence })), capabilities: { sourced: records.filter((record) => record.capabilitySource === "SOURCED_FROM_DIRECTORY").length, inferred: records.filter((record) => record.capabilitySource === "INFERRED_FROM_FACILITY_TYPE").length }, labels: ["Official directory identity", "Coordinate enriched from a separately cited public map source", "Distance calculated only for enriched coordinates", "SOURCED_FROM_DIRECTORY or INFERRED_FROM_FACILITY_TYPE", "Synthetic demo availability"] };
+  const records = buildFacilityRecords(),
+    serviceEntries = records.flatMap((record) =>
+      record.services.map((service) => record.serviceSources?.[service]),
+    );
+  return {
+    source:
+      "Official Tamil Nadu Chengalpattu district, municipality and Indian Medicine facility directories",
+    sourceUrl: "https://chengalpattu.nic.in/public-utility-category/hospitals/",
+    additionalSourceUrl:
+      "https://www.tnurbantree.tn.gov.in/chengalpattu/hospitals/",
+    filter: { district: "Chengalpattu", ownership: "Public/ Government" },
+    sourceRecords: tamilNaduPublicDirectory.length,
+    chengalpattuRecords: tamilNaduPublicDirectory.length,
+    validCoordinateRecords: coordinateEnrichments.length,
+    includedFacilities: coordinateEnrichments.map(
+      ({
+        facilityId,
+        sourceRowId,
+        lookupSource,
+        matchingEvidence,
+        retrievedOn,
+        confidence,
+      }) => ({
+        facilityId,
+        sourceRowId,
+        lookupSource,
+        matchingEvidence,
+        retrievedOn,
+        confidence,
+      }),
+    ),
+    capabilities: {
+      sourced: serviceEntries.filter(
+        (value) => value === "SOURCED_FROM_DIRECTORY",
+      ).length,
+      inferred: serviceEntries.filter(
+        (value) => value === "INFERRED_FROM_FACILITY_TYPE",
+      ).length,
+    },
+    labels: [
+      "Official government directory identity/address/phone",
+      "Coordinates separately enriched and provenance-labelled",
+      "INFERRED_FROM_FACILITY_TYPE is not verified local capability",
+      "Wait, bed and availability values are SIMULATED_FOR_PROTOTYPE",
+      "Verify facility availability before travel",
+    ],
+  };
+}
+
+export function facilityReviewQueue(){
+  const included=new Map(coordinateEnrichments.map(item=>[item.sourceRowId,item]));
+  return tamilNaduPublicDirectory.map(record=>{
+    const coordinate=included.get(record.sourceRowId),routeable=Boolean(coordinate);
+    return {sourceRowId:record.sourceRowId,name:record.name,careType:record.careType,district:record.district,address:record.address,phone:record.phone,sourceUrl:record.sourceUrl,retrievedOn:record.retrievedOn,routeable,facilityId:coordinate?.facilityId||null,coordinateConfidence:coordinate?.confidence||null,missing:routeable?[]:[record.address.includes("exact street address not published")?"VERIFIED_STREET_ADDRESS":"VERIFIED_COORDINATES","VERIFIED_COORDINATES"].filter((value,index,items)=>items.indexOf(value)===index),serviceBoundary:record.explicitlySourcedServices.length?record.explicitlySourcedServices:"No modern-medicine service capability verified"};
+  });
 }
