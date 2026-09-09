@@ -1,6 +1,6 @@
 # RuralCare Connect
 
-An offline-capable SIH demonstration app for routing a rural citizen or ASHA worker to an appropriate **public** healthcare service. It is not a diagnosis tool or a live government system.
+An offline-capable  app for routing a rural citizen or ASHA worker to an appropriate **public** healthcare service. It is not a diagnosis tool or a live government system.
 
 ## Run in VS Code
 
